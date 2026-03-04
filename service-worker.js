@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-20";
+const CACHE_NAME = "orcamento-clima-beta-0-1-21";
 
 const ASSETS = [
   "./",
@@ -6,14 +6,9 @@ const ASSETS = [
   "./config.js",
   "./manifest.json",
 
-  // PDF real + logo
   "./assets/logo.png",
   "./libs/jspdf.umd.min.js",
 
-  // (se existir, não atrapalha)
-  "./libs/html2canvas.min.js",
-
-  // Ícones (ajuste os nomes se os seus forem diferentes)
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
