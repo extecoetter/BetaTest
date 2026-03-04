@@ -1,14 +1,12 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-24";
+const CACHE_NAME = "orcamento-clima-beta-0-1-25";
 
 const ASSETS = [
   "./",
   "./index.html",
   "./config.js",
   "./manifest.json",
-
   "./assets/logo.png",
   "./libs/jspdf.umd.min.js",
-
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
@@ -32,7 +30,6 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // Network-first para HTML (pegar updates do beta)
   if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(
       fetch(req).then((res) => {
@@ -44,7 +41,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first para assets/libs + runtime cache
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
