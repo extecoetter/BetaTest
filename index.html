@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.231
+     Versão: BETA 0.1.24
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -663,7 +663,7 @@
 }
 
   
-/* --- BETA 0.1.23: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.24: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -712,7 +712,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.23";
+  window.APP_VERSION = "0.1.24";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -930,7 +930,7 @@
   ];
 
   const state = { items: [] };
-  const listEl = document.getElementById('servicesList');
+  let listEl = document.getElementById('servicesList');
   // === BETA PATCH START: iPhone UID ==================================
 
 
@@ -945,16 +945,21 @@ catch(e){}
 
 
   function addItem(){
-    const item = {
-      id: uid(),
-      presetIndex: -1,
-      desc: "",
-      price: 0,
-      qty: 1
-    };
-    state.items.push(item);
-    renderItems();
-    recalc();
+    try{
+      const item = {
+        id: uid(),
+        presetIndex: -1,
+        desc: "",
+        price: 0,
+        qty: 1
+      };
+      state.items.push(item);
+      renderItems();
+      recalc();
+    }catch(e){
+      alert("[ERRO] Não consegui adicionar item: " + (e && e.message ? e.message : e));
+      console.error(e);
+    }
   }
 
   function removeItem(id){
@@ -971,6 +976,8 @@ catch(e){}
   }
 
   function renderItems(){
+    if(!listEl){ listEl = document.getElementById('servicesList'); }
+    if(!listEl){ alert('[ERRO] Lista de serviços não encontrada (servicesList).'); return; }
     listEl.innerHTML = "";
     if(state.items.length === 0){
       const empty = document.createElement('div');
@@ -1560,7 +1567,7 @@ const obs = document.getElementById('obs').value.trim();
   renderItems(); // começa zerado
   recalc();
 
-// PWA: Service Worker (BETA 0.1.23)
+// PWA: Service Worker (BETA 0.1.24)
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js').catch(()=>{});
