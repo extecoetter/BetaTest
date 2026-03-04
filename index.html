@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.27
+     Versão: BETA 0.1.28
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -548,12 +548,12 @@
     .pdf .footer{ display:none; }
 
     @media print{
-  /* iPhone/Safari: garantir que o logo renderiza no PDF */
+  /* Garantir logo no PDF (print) */
   #logo, .header img{
     display:block !important;
     visibility: visible !important;
     opacity: 1 !important;
-    max-width: 260px !important;
+    max-width: 280px !important;
     height: auto !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -671,7 +671,7 @@
 }
 
   
-/* --- BETA 0.1.27: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.28: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -717,7 +717,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.27";
+  window.APP_VERSION = "0.1.28";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -803,7 +803,7 @@
   <section class="pdf" id="pdf">
 <div class="top">
   <div class="logoRow">
-    <img id="pdfLogo" src="assets/logo.png" alt="logo" onerror="this.style.display='none'"/>
+    <img id="pdfLogo" src="logo.png" alt="logo" onerror="this.style.display='none'"/>
   </div>
 
   <div class="headRow">
@@ -885,7 +885,7 @@
 
 <!-- Config por cliente (coloque um config.js dentro da pasta do cliente) -->
 <script>
-  // Se existir um arquivo "config.js" na mesma pasta, ele deve definir: window.CLIENT_CONFIG = { installer: {...}, logo: "assets/logo.png" }
+  // Se existir um arquivo "config.js" na mesma pasta, ele deve definir: window.CLIENT_CONFIG = { installer: {...}, logo: "logo.png" }
   window.CLIENT_CONFIG = window.CLIENT_CONFIG || null;
 </script>
 <script src="config.js"></script>
@@ -895,7 +895,7 @@
     nome: "Robson Andre Extecoetter",
     whats: "(14) 99707-3447",
     pix: "14 99707 3447 / Robson A Extecoetter",
-    logo: "assets/logo.png"
+    logo: "logo.png"
   };
 </script>
 
@@ -1194,10 +1194,10 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.27)
+        // PWA: Service Worker (BETA 0.1.28)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js?v=0.1.27').catch(()=>{});
+      navigator.serviceWorker.register('service-worker.js?v=0.1.28').catch(()=>{});
     });
     }
     
