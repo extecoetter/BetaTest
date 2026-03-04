@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.28
+     Versão: BETA 0.1.30
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -172,6 +172,7 @@
     .qty{
       display:flex;
       gap:10px;
+      flex-wrap:wrap;
       align-items:center;
       justify-content:space-between;
       border:1px solid var(--line);
@@ -201,6 +202,7 @@
       cursor:pointer;
       display:flex;
       gap:10px;
+      flex-wrap:wrap;
       justify-content:center;
       align-items:center;
       letter-spacing:.2px;
@@ -250,6 +252,7 @@
       margin:0 auto;
       display:flex;
       gap:10px;
+      flex-wrap:wrap;
     }
     .btn{
       flex:1;
@@ -671,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.28: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.30: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -717,7 +720,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.28";
+  window.APP_VERSION = "0.1.30";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -1194,10 +1197,242 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.28)
+        // PWA: Service Worker (BETA 0.1.30)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js?v=0.1.28').catch(()=>{});
+      
+    // ===== Enviar no WhatsApp (PDF como arquivo) ==========================
+    // Importante: não dá para anexar PDF via link wa.me automaticamente.
+    // O jeito correto é abrir o "compartilhar" do sistema com o PDF anexado e escolher WhatsApp.
+    let __jspdfLoading = null;
+
+    function loadJsPdf(){
+      if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+      if(__jspdfLoading) return __jspdfLoading;
+
+      __jspdfLoading = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "libs/jspdf.umd.min.js";
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("Não consegui carregar libs/jspdf.umd.min.js"));
+        document.head.appendChild(s);
+      });
+      return __jspdfLoading;
+    }
+
+    function imgToJpegDataUrl(img){
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img, 0, 0);
+      return c.toDataURL("image/jpeg", 0.92);
+    }
+
+    function loadLogoAsJpegDataUrl(){
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          try{
+            resolve(imgToJpegDataUrl(img));
+          }catch(e){
+            reject(new Error("Falha ao converter logo."));
+          }
+        };
+        img.onerror = () => reject(new Error("Logo não carregou (logo.png)."));
+        img.src = "logo.png?v=" + encodeURIComponent(window.APP_VERSION || "");
+      });
+    }
+
+    function pdfMoney(v){
+      return brl.format(Number(v) || 0);
+    }
+
+    async function gerarPdfBlobWhats(){
+      await loadJsPdf();
+      if(!window.jspdf || !window.jspdf.jsPDF){
+        throw new Error("jsPDF não disponível.");
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+
+      const margin = 42;
+      const contentW = pageW - margin*2;
+
+      // Logo
+      try{
+        const logoJpeg = await loadLogoAsJpegDataUrl();
+        doc.addImage(logoJpeg, "JPEG", margin, margin-12, 260, 120, undefined, "FAST");
+      }catch(e){
+        // sem logo, segue
+      }
+
+      let y = margin + 86;
+
+      // Cliente
+      const cliente = (document.getElementById("cliente") ? (document.getElementById("cliente").value || "").trim() : "");
+      const telefone = (document.getElementById("telefone") ? (document.getElementById("telefone").value || "").trim() : "");
+      const endereco = (document.getElementById("endereco") ? (document.getElementById("endereco").value || "").trim() : "");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(11, 94, 215);
+      doc.text("Cliente:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(cliente || "", margin + 62, y);
+
+      y += 18;
+      doc.setTextColor(11, 94, 215);
+      doc.text("Tel:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(telefone || "", margin + 30, y);
+
+      y += 18;
+      if(endereco){
+        doc.setTextColor(11, 94, 215);
+        doc.text("End:", margin, y);
+        doc.setTextColor(17,24,39);
+        doc.setFont("helvetica", "normal");
+        const endLines = doc.splitTextToSize(endereco, contentW - 40);
+        doc.text(endLines, margin + 34, y);
+        y += (endLines.length * 12);
+      }
+
+      y += 22;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(11,18,32);
+      doc.text("Proposta Comercial", pageW/2, y, { align:"center" });
+
+      y += 26;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
+      doc.text("QTD", margin + contentW - 160, y, { align:"center" });
+      doc.text("SUBTOTAL", margin + contentW, y, { align:"right" });
+
+      y += 8;
+      doc.setDrawColor(15,23,42);
+      doc.setLineWidth(1.2);
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(51,65,85);
+      doc.setLineWidth(0.6);
+      doc.setDrawColor(238,242,247);
+
+      let total = 0;
+      const items = (state && state.items) ? state.items : [];
+
+      for(let i=0;i<items.length;i++){
+        const it = items[i];
+        const desc = ((it && it.desc) ? String(it.desc) : "Serviço");
+        const qty = (it && it.qty) ? Number(it.qty) : 1;
+        const price = (it && it.price) ? Number(it.price) : 0;
+        const sub = qty * price;
+        total += sub;
+
+        if(y > pageH - margin - 180){
+          doc.addPage();
+          y = margin;
+        }
+
+        const descLines = doc.splitTextToSize(desc, contentW - 210);
+        doc.text(descLines, margin, y);
+
+        doc.setFont("helvetica","bold");
+        doc.text(String(qty), margin + contentW - 160, y, { align:"center" });
+        doc.text(pdfMoney(sub), margin + contentW, y, { align:"right" });
+        doc.setFont("helvetica","normal");
+
+        y += Math.max(18, descLines.length * 12);
+        doc.line(margin, y, pageW - margin, y);
+        y += 12;
+      }
+
+      // Totais
+      const descontoRaw = (document.getElementById("desconto") ? document.getElementById("desconto").value : "");
+      const desconto = parseBRL(descontoRaw || "");
+      const totalFinal = Math.max(0, total - desconto);
+
+      y += 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(102,112,133);
+      doc.text("Desconto:", margin + contentW - 300, y);
+      doc.text(pdfMoney(desconto), margin + contentW, y, { align:"right" });
+
+      y += 22;
+      doc.setFontSize(12);
+      doc.setTextColor(11,18,32);
+      doc.text("TOTAL GERAL", margin + contentW - 300, y);
+      doc.setFontSize(16);
+      doc.text(pdfMoney(totalFinal), margin + contentW, y, { align:"right" });
+
+      // Observações / Pagamento
+      const obs = (document.getElementById("obs") ? (document.getElementById("obs").value || "").trim() : "");
+      const pagamento = (document.getElementById("pagamento") ? (document.getElementById("pagamento").value || "").trim() : "");
+
+      y += 34;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.setFont("helvetica","bold");
+      doc.text("OBSERVAÇÕES", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const obsLines = obs ? doc.splitTextToSize(obs, contentW) : [""];
+      doc.text(obsLines, margin, y + 14);
+
+      y += 44 + obsLines.length * 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(11, 94, 215);
+      doc.text("FORMA DE PAGAMENTO", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [""];
+      doc.text(payLines, margin, y + 14);
+
+      return doc.output("blob");
+    }
+
+    async function enviarWhatsApp(){
+      const fileName = "proposta.pdf";
+      try{
+        const blob = await gerarPdfBlobWhats();
+        const file = new File([blob], fileName, { type: "application/pdf" });
+
+        const nome = (typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.name) ? INSTALLER.name : "";
+        const msg = "Olá, segue a proposta do seu serviço de climatização.\n\nQualquer dúvida estou à disposição.\n\nAtt,\n" + nome;
+
+        // Preferência: abrir o COMPARTILHAR do sistema com o PDF anexado (escolher WhatsApp)
+        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({ title: "Proposta Comercial", text: msg, files: [file] });
+          return;
+        }
+
+        // Fallback: abre o PDF e abre o WhatsApp com a mensagem (sem anexo)
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+        setTimeout(()=>URL.revokeObjectURL(url), 8000);
+        alert("Este aparelho não permite anexar PDF direto aqui. Abri o PDF e o WhatsApp com a mensagem.");
+      }catch(err){
+        alert("Não foi possível enviar no WhatsApp: " + (err && err.message ? err.message : err));
+      }
+    }
+    // ======================================================================
+
+
+    navigator.serviceWorker.register('service-worker.js?v=0.1.30').catch(()=>{});
     });
     }
     
