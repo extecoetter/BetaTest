@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.20
+     Versão: BETA 0.1.21
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -663,7 +663,7 @@
 }
 
   
-/* --- BETA 0.1.20: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.21: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -712,7 +712,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.20";
+  window.APP_VERSION = "0.1.21";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -1159,6 +1159,15 @@ const obs = document.getElementById('obs').value.trim();
 
     // === PDF REAL (sem html2canvas) =======================================
     let __logoDataUrl = null;
+    let __logoType = "PNG";
+
+    function detectImageType(dataUrl){
+      if(typeof dataUrl !== "string") return "PNG";
+      if(dataUrl.startsWith("data:image/jpeg")) return "JPEG";
+      if(dataUrl.startsWith("data:image/jpg")) return "JPEG";
+      if(dataUrl.startsWith("data:image/png")) return "PNG";
+      return "PNG";
+    }
 
     function imgElementToDataURL(img){
       try{
@@ -1169,36 +1178,56 @@ const obs = document.getElementById('obs').value.trim();
         c.width = w;
         c.height = h;
         const ctx = c.getContext("2d");
+
+        // pinta fundo branco pra evitar PNG com transparência ficar "estranho" no PDF
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+
         ctx.drawImage(img, 0, 0);
-        return c.toDataURL("image/png");
+
+        // JPEG costuma ser mais compatível no jsPDF (evita PNGs problemáticos)
+        return c.toDataURL("image/jpeg", 0.95);
       }catch(e){
         return null;
       }
     }
 
-    async function fetchAsDataURL(url){
-      const res = await fetch(url, { cache: "force-cache" });
-      if(!res.ok) throw new Error("Não consegui carregar: " + url);
-      const blob = await res.blob();
+    async function loadImageAsDataURL(src){
+      // Carrega a imagem via <img> pra normalizar qualquer PNG “difícil”
       return await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = () => reject(new Error("Falha ao ler arquivo: " + url));
-        r.readAsDataURL(blob);
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const d = imgElementToDataURL(img);
+          if(!d) return reject(new Error("Falha ao converter logo."));
+          resolve(d);
+        };
+        img.onerror = () => reject(new Error("Não consegui carregar a imagem: " + src));
+        img.src = src;
       });
     }
 
     async function getLogoDataUrl(){
       if(__logoDataUrl) return __logoDataUrl;
 
-      // 1) tenta pegar do <img> já carregado na tela (mais confiável no PWA com cache)
-      const img = document.querySelector('img[src*="assets/logo"], img#logo, header img');
-      if(img && (img.complete && (img.naturalWidth || img.width))){
-        const d = imgElementToDataURL(img);
-        if(d){
+      const candidates = [];
+      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
+      candidates.push("assets/logo.png");
+      candidates.push("./assets/logo.png");
+
+      // tenta cada caminho com cache-bust da versão (pra não ficar preso no SW antigo)
+      for(const p of candidates){
+        try{
+          const bust = (p.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(window.APP_VERSION || "");
+          const d = await loadImageAsDataURL(p + bust);
           __logoDataUrl = d;
+          __logoType = detectImageType(d);
           return __logoDataUrl;
-        }
+        }catch(e){}
+      }
+
+      throw new Error("Logo não carregou. Confirme /assets/logo.png");
+    }
       }
 
       // 2) tenta via fetch (caminhos comuns)
@@ -1242,7 +1271,7 @@ const obs = document.getElementById('obs').value.trim();
         const logo = await getLogoDataUrl();
         const logoW = 260;
         const logoH = 120;
-        doc.addImage(logo, "PNG", margin-8, y-18, logoW, logoH, undefined, "FAST");
+        doc.addImage(logo, (__logoType || "JPEG"), margin-8, y-18, logoW, logoH, undefined, "FAST");
       }catch(e){}
 
       // Data/Validade (lado direito)
@@ -1531,7 +1560,7 @@ const obs = document.getElementById('obs').value.trim();
   renderItems(); // começa zerado
   recalc();
 
-// PWA: Service Worker (BETA 0.1.20)
+// PWA: Service Worker (BETA 0.1.21)
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js').catch(()=>{});
