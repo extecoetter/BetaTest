@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.21
+     Versão: BETA 0.1.22
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -663,7 +663,7 @@
 }
 
   
-/* --- BETA 0.1.21: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.22: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -712,7 +712,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.21";
+  window.APP_VERSION = "0.1.22";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -1061,7 +1061,7 @@ catch(e){}
       const sub = (Number(it.price) || 0) * (Number(it.qty) || 0);
       total += sub;
     }
-    const desconto = parseBRL(document.getElementById('desconto')?.value || '');
+    const desconto = parseBRL((document.getElementById('desconto')||{}).value || '');
     const totalFinal = Math.max(0, total - desconto);
     totalLabel.textContent = brl.format(totalFinal);
   }
@@ -1141,10 +1141,10 @@ const obs = document.getElementById('obs').value.trim();
       tbody.appendChild(tr);
     });
 
-    const desconto = parseBRL(document.getElementById('desconto')?.value || '');
+    const desconto = parseBRL((document.getElementById('desconto')||{}).value || '');
     const totalFinal = Math.max(0, total - desconto);
 
-    const validade = (document.getElementById('validade')?.value || '').trim();
+    const validade = ((document.getElementById('validade')||{}).value || '').trim();
     const validadeTxt = validade || "7 dias";
 
     const pdfDescontoEl = document.getElementById('pdfDesconto');
@@ -1275,8 +1275,8 @@ const obs = document.getElementById('obs').value.trim();
       }catch(e){}
 
       // Data/Validade (lado direito)
-      const data = document.getElementById('data')?.value;
-      const validade = (document.getElementById('validade')?.value || '').trim() || "7 dias";
+      const data = (document.getElementById('data')||{}).value;
+      const validade = ((document.getElementById('validade')||{}).value || '').trim() || "7 dias";
 
       const d = data ? new Date(data+"T00:00:00") : new Date();
       const dd = String(d.getDate()).padStart(2,'0');
@@ -1309,9 +1309,9 @@ const obs = document.getElementById('obs').value.trim();
       // Caixa cliente
       y += 16;
 
-      const cliente = (document.getElementById('cliente')?.value || '').trim();
-      const tel = formatPhoneDisplay((document.getElementById('telefone')?.value || '').trim());
-      const end = (document.getElementById('endereco')?.value || '').trim();
+      const cliente = ((document.getElementById('cliente')||{}).value || '').trim();
+      const tel = formatPhoneDisplay(((document.getElementById('telefone')||{}).value || '').trim());
+      const end = ((document.getElementById('endereco')||{}).value || '').trim();
 
       doc.setFillColor(234, 242, 255);
       doc.setDrawColor(219, 234, 254);
@@ -1417,7 +1417,7 @@ const obs = document.getElementById('obs').value.trim();
       }
 
       // Totais
-      const desconto = parseBRL(document.getElementById('desconto')?.value || '');
+      const desconto = parseBRL((document.getElementById('desconto')||{}).value || '');
       const totalFinal = Math.max(0, total - desconto);
 
       const panelW = 300;
@@ -1443,8 +1443,8 @@ const obs = document.getElementById('obs').value.trim();
       y = py + 70;
 
       // Observações / Pagamento
-      const obs = (document.getElementById('obs')?.value || '').trim();
-      const pagamento = (document.getElementById('pagamento')?.value || '').trim();
+      const obs = ((document.getElementById('obs')||{}).value || '').trim();
+      const pagamento = ((document.getElementById('pagamento')||{}).value || '').trim();
 
       const boxW = contentW;
       const boxX = margin;
@@ -1560,7 +1560,7 @@ const obs = document.getElementById('obs').value.trim();
   renderItems(); // começa zerado
   recalc();
 
-// PWA: Service Worker (BETA 0.1.21)
+// PWA: Service Worker (BETA 0.1.22)
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js').catch(()=>{});
