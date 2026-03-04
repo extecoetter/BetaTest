@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.25
+     Versão: BETA 0.1.26
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -172,7 +172,6 @@
     .qty{
       display:flex;
       gap:10px;
-      flex-wrap: wrap;
       align-items:center;
       justify-content:space-between;
       border:1px solid var(--line);
@@ -202,7 +201,6 @@
       cursor:pointer;
       display:flex;
       gap:10px;
-      flex-wrap: wrap;
       justify-content:center;
       align-items:center;
       letter-spacing:.2px;
@@ -252,7 +250,6 @@
       margin:0 auto;
       display:flex;
       gap:10px;
-      flex-wrap: wrap;
     }
     .btn{
       flex:1;
@@ -663,7 +660,7 @@
 }
 
   
-/* --- BETA 0.1.25: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.17: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -675,9 +672,6 @@
 }
 
   </style>
-
-  <!-- jsPDF local (offline) para "Compartilhar PDF" real -->
-  <script src="libs/jspdf.umd.min.js"></script>
 
 <script>
   // BETA DEBUG (0.1.3) - mostra erros na tela
@@ -712,7 +706,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.25";
+  window.APP_VERSION = "0.1.26";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -873,8 +867,8 @@
   
 <div class="actions">
   <div class="inner">
-    <button class="btn" id="btnLimpar" type="button" type="button">Limpar</button>
-    <button class="btn primary" id="btnPdf" type="button" type="button">Gerar PDF</button>
+    <button class="btn" id="btnLimpar" type="button">Limpar</button>
+    <button class="btn primary" id="btnPdf" type="button">Gerar PDF</button>
   </div>
 </div>
 
@@ -930,7 +924,7 @@
   ];
 
   const state = { items: [] };
-  let listEl = document.getElementById('servicesList');
+  const listEl = document.getElementById('servicesList');
   // === BETA PATCH START: iPhone UID ==================================
 
 
@@ -945,21 +939,16 @@ catch(e){}
 
 
   function addItem(){
-    try{
-      const item = {
-        id: uid(),
-        presetIndex: -1,
-        desc: "",
-        price: 0,
-        qty: 1
-      };
-      state.items.push(item);
-      renderItems();
-      recalc();
-    }catch(e){
-      alert("[ERRO] Não consegui adicionar item: " + (e && e.message ? e.message : e));
-      console.error(e);
-    }
+    const item = {
+      id: uid(),
+      presetIndex: -1,
+      desc: "",
+      price: 0,
+      qty: 1
+    };
+    state.items.push(item);
+    renderItems();
+    recalc();
   }
 
   function removeItem(id){
@@ -976,8 +965,6 @@ catch(e){}
   }
 
   function renderItems(){
-    if(!listEl){ listEl = document.getElementById('servicesList'); }
-    if(!listEl){ alert('[ERRO] Lista de serviços não encontrada (servicesList).'); return; }
     listEl.innerHTML = "";
     if(state.items.length === 0){
       const empty = document.createElement('div');
@@ -1068,7 +1055,7 @@ catch(e){}
       const sub = (Number(it.price) || 0) * (Number(it.qty) || 0);
       total += sub;
     }
-    const desconto = parseBRL($val('desconto') || '');
+    const desconto = parseBRL((document.getElementById('desconto') ? document.getElementById('desconto').value : '') || '');
     const totalFinal = Math.max(0, total - desconto);
     totalLabel.textContent = brl.format(totalFinal);
   }
@@ -1148,10 +1135,10 @@ const obs = document.getElementById('obs').value.trim();
       tbody.appendChild(tr);
     });
 
-    const desconto = parseBRL($val('desconto') || '');
+    const desconto = parseBRL((document.getElementById('desconto') ? document.getElementById('desconto').value : '') || '');
     const totalFinal = Math.max(0, total - desconto);
 
-    const validade = ($val('validade') || '').trim();
+    const validade = ((document.getElementById('validade') ? document.getElementById('validade').value : '') || '').trim();
     const validadeTxt = validade || "7 dias";
 
     const pdfDescontoEl = document.getElementById('pdfDesconto');
@@ -1163,1007 +1150,47 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('pdfTotal').textContent = brl.format(totalFinal);
   }
 
-
-    // === PDF REAL (sem html2canvas) =======================================
-    let __logoDataUrl = null;
-    let __logoType = "PNG";
-
-    function detectImageType(dataUrl){
-      if(typeof dataUrl !== "string") return "PNG";
-      if(dataUrl.startsWith("data:image/jpeg")) return "JPEG";
-      if(dataUrl.startsWith("data:image/jpg")) return "JPEG";
-      if(dataUrl.startsWith("data:image/png")) return "PNG";
-      return "PNG";
-    }
-
-    function imgElementToDataURL(img){
-      try{
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        if(!w || !h) return null;
-        const c = document.createElement("canvas");
-        c.width = w;
-        c.height = h;
-        const ctx = c.getContext("2d");
-
-        // pinta fundo branco pra evitar PNG com transparência ficar "estranho" no PDF
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.drawImage(img, 0, 0);
-
-        // JPEG costuma ser mais compatível no jsPDF (evita PNGs problemáticos)
-        return c.toDataURL("image/jpeg", 0.95);
-      }catch(e){
-        return null;
-      }
-    }
-
-    async function loadImageAsDataURL(src){
-      // Carrega a imagem via <img> pra normalizar qualquer PNG “difícil”
-      return await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const d = imgElementToDataURL(img);
-          if(!d) return reject(new Error("Falha ao converter logo."));
-          resolve(d);
-        };
-        img.onerror = () => reject(new Error("Não consegui carregar a imagem: " + src));
-        img.src = src;
-      });
-    }
-
-    async function getLogoDataUrl(){
-      if(__logoDataUrl) return __logoDataUrl;
-
-      const candidates = [];
-      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
-      candidates.push("assets/logo.png");
-      candidates.push("./assets/logo.png");
-
-      // tenta cada caminho com cache-bust da versão (pra não ficar preso no SW antigo)
-      for(const p of candidates){
-        try{
-          const bust = (p.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(window.APP_VERSION || "");
-          const d = await loadImageAsDataURL(p + bust);
-          __logoDataUrl = d;
-          __logoType = detectImageType(d);
-          return __logoDataUrl;
-        }catch(e){}
-      }
-
-      throw new Error("Logo não carregou. Confirme /assets/logo.png");
-    }
-      }
-
-      // 2) tenta via fetch (caminhos comuns)
-      const candidates = [];
-      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
-      candidates.push("assets/logo.png");
-      candidates.push("./assets/logo.png");
-
-      for(const p of candidates){
-        try{
-          __logoDataUrl = await fetchAsDataURL(p);
-          return __logoDataUrl;
-        }catch(e){}
-      }
-
-      throw new Error("Logo não carregou (confira /assets/logo.png e o service-worker cache).");
-    }
-
-    function pdfMoney(v){
-      return brl.format(Number(v) || 0);
-    }
-
-    async function gerarPdfRealBlob(){
-      if(!window.jspdf || !window.jspdf.jsPDF){
-        throw new Error("jsPDF não carregou. Confirme /libs/jspdf.umd.min.js");
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
-
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-
-      const margin = 42;                 // ~14mm
-      const contentW = pageW - margin*2;
-
-      let y = margin;
-
-      // Logo
-      try{
-        const logo = await getLogoDataUrl();
-        const logoW = 260;
-        const logoH = 120;
-        doc.addImage(logo, (__logoType || "JPEG"), margin-8, y-18, logoW, logoH, undefined, "FAST");
-      }catch(e){}
-
-      // Data/Validade (lado direito)
-      const data = $val('data');
-      const validade = ($val('validade') || '').trim() || "7 dias";
-
-      const d = data ? new Date(data+"T00:00:00") : new Date();
-      const dd = String(d.getDate()).padStart(2,'0');
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yyyy = d.getFullYear();
-      const dataTxt = `${dd}/${mm}/${yyyy}`;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(11, 94, 215);
-      doc.text("DATA DE EMISSÃO", pageW - margin, y, { align: "right" });
-
-      doc.setTextColor(17, 24, 39);
-      doc.setFontSize(11);
-      doc.text(dataTxt, pageW - margin, y + 16, { align: "right" });
-
-      doc.setFontSize(10);
-      doc.setTextColor(17, 24, 39);
-      doc.setFont("helvetica", "bold");
-      doc.text("Validade da proposta:", pageW - margin, y + 34, { align: "right" });
-      doc.setFont("helvetica", "normal");
-      doc.text(validade, pageW - margin, y + 48, { align: "right" });
-
-      // Linha
-      y += 86;
-      doc.setDrawColor(219, 234, 254);
-      doc.setLineWidth(1);
-      doc.line(margin, y, pageW - margin, y);
-
-      // Caixa cliente
-      y += 16;
-
-      const cliente = ($val('cliente') || '').trim();
-      const tel = formatPhoneDisplay(($val('telefone') || '').trim());
-      const end = ($val('endereco') || '').trim();
-
-      doc.setFillColor(234, 242, 255);
-      doc.setDrawColor(219, 234, 254);
-      doc.roundedRect(margin, y, contentW, 72, 10, 10, "FD");
-
-      let cy = y + 22;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(11, 94, 215);
-      doc.text("Cliente:", margin + 14, cy);
-
-      doc.setTextColor(17, 24, 39);
-      doc.text(cliente || "", margin + 70, cy);
-
-      doc.setTextColor(11, 94, 215);
-      doc.text("TEL:", margin + 340, cy);
-
-      doc.setTextColor(17, 24, 39);
-      doc.text(tel || "", margin + 380, cy);
-
-      cy += 22;
-      if(end){
-        doc.setTextColor(11, 94, 215);
-        doc.text("END:", margin + 14, cy);
-
-        doc.setTextColor(17, 24, 39);
-        doc.setFont("helvetica", "normal");
-        const endLines = doc.splitTextToSize(end, contentW - 70);
-        doc.text(endLines, margin + 70, cy);
-      }
-
-      y += 92;
-
-      // Título
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(11, 18, 32);
-      doc.text("Proposta Comercial", pageW/2, y, { align: "center" });
-      y += 28;
-
-      // Tabela cabeçalho
-      doc.setFontSize(10);
-      doc.setTextColor(11, 94, 215);
-      doc.setFont("helvetica", "bold");
-      doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
-      doc.text("QTD", margin + contentW - 160, y, { align: "center" });
-      doc.text("SUBTOTAL", margin + contentW, y, { align: "right" });
-
-      y += 8;
-      doc.setDrawColor(15, 23, 42);
-      doc.setLineWidth(1.4);
-      doc.line(margin, y, pageW - margin, y);
-      y += 14;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.setLineWidth(0.6);
-      doc.setDrawColor(238, 242, 247);
-
-      let total = 0;
-      const items = state.items || [];
-      for(const it of items){
-        const desc = (it.desc || "Serviço").trim();
-        const qty = Number(it.qty) || 1;
-        const sub = (Number(it.price) || 0) * qty;
-        total += sub;
-
-        if(y > pageH - margin - 180){
-          doc.addPage();
-          y = margin;
-
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(11, 94, 215);
-          doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
-          doc.text("QTD", margin + contentW - 160, y, { align: "center" });
-          doc.text("SUBTOTAL", margin + contentW, y, { align: "right" });
-          y += 8;
-          doc.setDrawColor(15, 23, 42);
-          doc.setLineWidth(1.4);
-          doc.line(margin, y, pageW - margin, y);
-          y += 14;
-
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(51, 65, 85);
-          doc.setDrawColor(238, 242, 247);
-          doc.setLineWidth(0.6);
-        }
-
-        const descLines = doc.splitTextToSize(desc, contentW - 210);
-        const rowH = Math.max(18, descLines.length * 12);
-
-        doc.text(descLines, margin, y);
-        doc.setFont("helvetica", "bold");
-        doc.text(String(qty), margin + contentW - 160, y, { align: "center" });
-        doc.text(pdfMoney(sub), margin + contentW, y, { align: "right" });
-
-        y += rowH - 6;
-        doc.setFont("helvetica", "normal");
-        doc.line(margin, y, pageW - margin, y);
-        y += 14;
-      }
-
-      // Totais
-      const desconto = parseBRL($val('desconto') || '');
-      const totalFinal = Math.max(0, total - desconto);
-
-      const panelW = 300;
-      const px = pageW - margin - panelW;
-      const py = y + 10;
-
-      doc.setDrawColor(238, 242, 247);
-      doc.setLineWidth(1);
-      doc.line(px, py, px + panelW, py);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(102, 112, 133);
-      doc.text("Desconto:", px, py + 18);
-      doc.text(pdfMoney(desconto), px + panelW, py + 18, { align: "right" });
-
-      doc.setFontSize(11);
-      doc.setTextColor(11, 18, 32);
-      doc.text("TOTAL GERAL", px, py + 42);
-      doc.setFontSize(16);
-      doc.text(pdfMoney(totalFinal), px + panelW, py + 44, { align: "right" });
-
-      y = py + 70;
-
-      // Observações / Pagamento
-      const obs = ($val('obs') || '').trim();
-      const pagamento = ($val('pagamento') || '').trim();
-
-      const boxW = contentW;
-      const boxX = margin;
-
-      const obsLines = obs ? doc.splitTextToSize(obs, boxW - 28) : [""];
-      const obsH = Math.max(58, 26 + obsLines.length * 12);
-
-      if(y + obsH + 90 > pageH - margin){
-        doc.addPage();
-        y = margin;
-      }
-
-      doc.setDrawColor(238, 242, 247);
-      doc.setLineWidth(1);
-
-      doc.roundedRect(boxX, y, boxW, obsH, 10, 10, "S");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(11, 94, 215);
-      doc.text("OBSERVAÇÕES", boxX + 14, y + 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(obsLines, boxX + 14, y + 36);
-
-      y += obsH + 10;
-
-      const payH = 58;
-      if(y + payH > pageH - margin){
-        doc.addPage();
-        y = margin;
-      }
-
-      doc.roundedRect(boxX, y, boxW, payH, 10, 10, "S");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(11, 94, 215);
-      doc.text("FORMA DE PAGAMENTO", boxX + 14, y + 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(pagamento || "", boxX + 14, y + 38);
-
-      return doc.output("blob");
-    }
-
-    async function compartilharPdf(){
-      const fileName = "proposta.pdf";
-      try{
-        const blob = await gerarPdfRealBlob();
-        const file = new File([blob], fileName, { type: "application/pdf" });
-
-        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
-          await navigator.share({
-            title: "Proposta Comercial",
-            text: "Segue a proposta em PDF.",
-            files: [file]
-          });
-          return;
-        }
-
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url), 4000);
-
-        alert("Seu Android não liberou o compartilhamento automático. Abri o PDF e também baixei o arquivo.");
-      }catch(err){
-        alert("Não foi possível gerar/compartilhar o PDF: " + (err && err.message ? err.message : err));
-      }
-    }
-
-document.addEventListener('DOMContentLoaded', function(){
-
-});
-function addItem(){
-    try{
-      const item = {
-        id: uid(),
-        presetIndex: -1,
-        desc: "",
-        price: 0,
-        qty: 1
-      };
-      state.items.push(item);
+    // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
+  document.addEventListener('DOMContentLoaded', function(){
+          document.getElementById('btnAdd').addEventListener('click', addItem);
+     document.getElementById('btnPdf').addEventListener('click', () => {
+      fillPDF();
+      window.print();
+    });
+    document.getElementById('btnLimpar').addEventListener('click', () => {
+      state.items = [];
       renderItems();
+      document.getElementById('cliente').value = "";
+      document.getElementById('endereco').value = "";
+      document.getElementById('telefone').value = "";
+      document.getElementById('obs').value = "";
+      document.getElementById('pagamento').value = "";
+      document.getElementById('data').value = todayISO();
+    const vEl = document.getElementById('validade'); if(vEl && !vEl.value) vEl.value = "7 dias";
       recalc();
-    }catch(e){
-      alert("[ERRO] Não consegui adicionar item: " + (e && e.message ? e.message : e));
-      console.error(e);
-    }
-  }
-
-  function removeItem(id){
-    state.items = state.items.filter(i => i.id !== id);
-    renderItems();
-    recalc();
-  }
-
-  function setItem(id, patch){
-    const it = state.items.find(i => i.id === id);
-    if(!it) return;
-    Object.assign(it, patch);
-    recalc();
-  }
-
-  function renderItems(){
-    if(!listEl){ listEl = document.getElementById('servicesList'); }
-    if(!listEl){ alert('[ERRO] Lista de serviços não encontrada (servicesList).'); return; }
-    listEl.innerHTML = "";
-    if(state.items.length === 0){
-      const empty = document.createElement('div');
-      empty.style.color = "#6b7280";
-      empty.style.fontWeight = "800";
-      empty.style.padding = "6px 2px";
-      empty.textContent = "Nenhum serviço adicionado. Clique em “ADICIONAR ITEM”.";
-      listEl.appendChild(empty);
-      return;
-    }
-
-    state.items.forEach((it) => {
-      const div = document.createElement('div');
-      div.className = "service";
-
-      div.innerHTML = `
-        <div class="service-top">
-          <select aria-label="Serviço">
-            <option value="-1">${it.desc ? it.desc : "Selecione..."}</option>
-            ${PRESETS.map((p, idx) => `<option value="${idx}">${p.name}</option>`).join('')}
-          </select>
-          <button class="trash" title="Remover">🗑️</button>
-        </div>
-
-        <div class="service-bottom">
-          <div class="money">
-            <span>R$</span>
-            <input inputmode="decimal" placeholder="0,00" value="${(it.price).toFixed(2).replace('.', ',')}" />
-          </div>
-
-          <div class="qty" aria-label="Quantidade">
-            <button data-act="minus" type="button" aria-label="Diminuir">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M6 12h12"></path>
-              </svg>
-            </button>
-            <b>${it.qty}</b>
-            <button data-act="plus" type="button" aria-label="Aumentar">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M12 6v12"></path>
-                <path d="M6 12h12"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-      `;
-
-      const sel = div.querySelector('select');
-      const trash = div.querySelector('.trash');
-      const priceInput = div.querySelector('input');
-      const qtyBox = div.querySelector('.qty');
-      const qtyLabel = div.querySelector('.qty b');
-
-      sel.addEventListener('change', (e) => {
-        const idx = Number(e.target.value);
-        if(idx >= 0){
-          setItem(it.id, { presetIndex: idx, desc: PRESETS[idx].name, price: PRESETS[idx].price });
-          priceInput.value = PRESETS[idx].price.toFixed(2).replace('.', ',');
-        }
-      });
-
-      trash.addEventListener('click', () => removeItem(it.id));
-
-      priceInput.addEventListener('input', () => {
-        setItem(it.id, { price: parseBRL(priceInput.value) });
-      });
-
-      qtyBox.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if(!btn) return;
-        const act = btn.dataset.act;
-        let q = it.qty || 1;
-        if(act === "minus") q = Math.max(1, q - 1);
-        if(act === "plus") q = q + 1;
-        qtyLabel.textContent = q;
-        setItem(it.id, { qty: q });
-      });
-
-      listEl.appendChild(div);
     });
-  }
-
-  const totalLabel = document.getElementById('totalLabel');
-
-  function recalc(){
-    let total = 0;
-    for(const it of state.items){
-      const sub = (Number(it.price) || 0) * (Number(it.qty) || 0);
-      total += sub;
-    }
-    const desconto = parseBRL($val('desconto') || '');
-    const totalFinal = Math.max(0, total - desconto);
-    totalLabel.textContent = brl.format(totalFinal);
-  }
-
-  function formatPhoneDisplay(p){
-  // remove parênteses e espaços extras para ficar: 14 9XXXX-XXXX (ou o que o usuário digitou, sem "(" e ")")
-  return String(p || "")
-    .replace(/[()]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function escapeHtml(s){
-    return String(s)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-
-  function fillPDF(){
-
-// Dados do instalador (config por cliente)
-const logoEl = document.getElementById('pdfLogo');
-if(logoEl && INSTALLER && INSTALLER.logo) logoEl.src = INSTALLER.logo;
-
-const nomeInst = (INSTALLER && INSTALLER.nome) ? INSTALLER.nome : "";
-const whatsInst = (INSTALLER && INSTALLER.whats) ? INSTALLER.whats : "";
-const pixInst = (INSTALLER && INSTALLER.pix) ? INSTALLER.pix : "";
-
-const waElFix = document.getElementById('pdfWhatsFix');
-if(waElFix) waElFix.textContent = whatsInst;
-
-// Atualiza Chave Pix (linha do instalador)
-const pixLine = document.querySelector('.pdf .bankLine .v');
-if(pixLine) pixLine.textContent = pixInst;
-
-// Atualiza Nome do instalador (linha do topo)
-const nomeLine = document.querySelector('.pdf .instLine .v');
-if(nomeLine) nomeLine.textContent = nomeInst;
-
-    const cliente = document.getElementById('cliente').value.trim();
-    const endereco = document.getElementById('endereco').value.trim();
-    const telefone = document.getElementById('telefone').value.trim();
-const obs = document.getElementById('obs').value.trim();
-    const pagamento = document.getElementById('pagamento').value.trim();
-    const data = document.getElementById('data').value;
-
-    document.getElementById('pdfClienteLine').innerHTML = `<span class="lblBlue">Cliente:</span> ${escapeHtml(cliente || '')}<span class="gapTel"></span><span class="lblBlue">TEL:</span> ${escapeHtml(formatPhoneDisplay(telefone || ''))}`;
-    document.getElementById('pdfEndereco').innerHTML = endereco ? `<span class="lblBlue">END:</span> ${escapeHtml(endereco)}` : '';
-    document.getElementById('pdfObs').textContent = obs || "";
-    document.getElementById('pdfPagamento').textContent = pagamento || "";
-
-    const d = data ? new Date(data+"T00:00:00") : new Date();
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yyyy = d.getFullYear();
-    document.getElementById('pdfData').textContent = `${dd}/${mm}/${yyyy}`;
-
-    const tbody = document.getElementById('pdfTbody');
-    tbody.innerHTML = "";
-
-    let total = 0;
-    state.items.forEach(it => {
-      const desc = it.desc || "Serviço";
-      const qty = Number(it.qty) || 1;
-      const sub = (Number(it.price)||0) * qty;
-      total += sub;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeHtml(desc)}</td>
-        <td>${qty}</td>
-        <td>${brl.format(sub)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    const desconto = parseBRL($val('desconto') || '');
-    const totalFinal = Math.max(0, total - desconto);
-
-    const validade = ($val('validade') || '').trim();
-    const validadeTxt = validade || "7 dias";
-
-    const pdfDescontoEl = document.getElementById('pdfDesconto');
-    if(pdfDescontoEl) pdfDescontoEl.textContent = brl.format(desconto);
-
-    const pdfValEl = document.getElementById('pdfValidade');
-    if(pdfValEl) pdfValEl.textContent = validadeTxt;
-
-    document.getElementById('pdfTotal').textContent = brl.format(totalFinal);
-  }
-
-
-    // === PDF REAL (sem html2canvas) =======================================
-    let __logoDataUrl = null;
-    let __logoType = "PNG";
-
-    function detectImageType(dataUrl){
-      if(typeof dataUrl !== "string") return "PNG";
-      if(dataUrl.startsWith("data:image/jpeg")) return "JPEG";
-      if(dataUrl.startsWith("data:image/jpg")) return "JPEG";
-      if(dataUrl.startsWith("data:image/png")) return "PNG";
-      return "PNG";
-    }
-
-    function imgElementToDataURL(img){
-      try{
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        if(!w || !h) return null;
-        const c = document.createElement("canvas");
-        c.width = w;
-        c.height = h;
-        const ctx = c.getContext("2d");
-
-        // pinta fundo branco pra evitar PNG com transparência ficar "estranho" no PDF
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.drawImage(img, 0, 0);
-
-        // JPEG costuma ser mais compatível no jsPDF (evita PNGs problemáticos)
-        return c.toDataURL("image/jpeg", 0.95);
-      }catch(e){
-        return null;
-      }
-    }
-
-    async function loadImageAsDataURL(src){
-      // Carrega a imagem via <img> pra normalizar qualquer PNG “difícil”
-      return await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const d = imgElementToDataURL(img);
-          if(!d) return reject(new Error("Falha ao converter logo."));
-          resolve(d);
-        };
-        img.onerror = () => reject(new Error("Não consegui carregar a imagem: " + src));
-        img.src = src;
+     const descontoEl = document.getElementById('desconto');
+    if(descontoEl){
+      descontoEl.addEventListener('input', recalc);
+      descontoEl.addEventListener('blur', () => {
+        const v = parseBRL(descontoEl.value);
+        // formata no padrão pt-BR (sem R$ porque já tem o prefixo)
+        descontoEl.value = (v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        recalc();
       });
     }
-
-    async function getLogoDataUrl(){
-      if(__logoDataUrl) return __logoDataUrl;
-
-      const candidates = [];
-      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
-      candidates.push("assets/logo.png");
-      candidates.push("./assets/logo.png");
-
-      // tenta cada caminho com cache-bust da versão (pra não ficar preso no SW antigo)
-      for(const p of candidates){
-        try{
-          const bust = (p.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(window.APP_VERSION || "");
-          const d = await loadImageAsDataURL(p + bust);
-          __logoDataUrl = d;
-          __logoType = detectImageType(d);
-          return __logoDataUrl;
-        }catch(e){}
-      }
-
-      throw new Error("Logo não carregou. Confirme /assets/logo.png");
-    }
-      }
-
-      // 2) tenta via fetch (caminhos comuns)
-      const candidates = [];
-      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
-      candidates.push("assets/logo.png");
-      candidates.push("./assets/logo.png");
-
-      for(const p of candidates){
-        try{
-          __logoDataUrl = await fetchAsDataURL(p);
-          return __logoDataUrl;
-        }catch(e){}
-      }
-
-      throw new Error("Logo não carregou (confira /assets/logo.png e o service-worker cache).");
-    }
-
-    function pdfMoney(v){
-      return brl.format(Number(v) || 0);
-    }
-
-    async function gerarPdfRealBlob(){
-      if(!window.jspdf || !window.jspdf.jsPDF){
-        throw new Error("jsPDF não carregou. Confirme /libs/jspdf.umd.min.js");
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
-
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-
-      const margin = 42;                 // ~14mm
-      const contentW = pageW - margin*2;
-
-      let y = margin;
-
-      // Logo
-      try{
-        const logo = await getLogoDataUrl();
-        const logoW = 260;
-        const logoH = 120;
-        doc.addImage(logo, (__logoType || "JPEG"), margin-8, y-18, logoW, logoH, undefined, "FAST");
-      }catch(e){}
-
-      // Data/Validade (lado direito)
-      const data = $val('data');
-      const validade = ($val('validade') || '').trim() || "7 dias";
-
-      const d = data ? new Date(data+"T00:00:00") : new Date();
-      const dd = String(d.getDate()).padStart(2,'0');
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yyyy = d.getFullYear();
-      const dataTxt = `${dd}/${mm}/${yyyy}`;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(11, 94, 215);
-      doc.text("DATA DE EMISSÃO", pageW - margin, y, { align: "right" });
-
-      doc.setTextColor(17, 24, 39);
-      doc.setFontSize(11);
-      doc.text(dataTxt, pageW - margin, y + 16, { align: "right" });
-
-      doc.setFontSize(10);
-      doc.setTextColor(17, 24, 39);
-      doc.setFont("helvetica", "bold");
-      doc.text("Validade da proposta:", pageW - margin, y + 34, { align: "right" });
-      doc.setFont("helvetica", "normal");
-      doc.text(validade, pageW - margin, y + 48, { align: "right" });
-
-      // Linha
-      y += 86;
-      doc.setDrawColor(219, 234, 254);
-      doc.setLineWidth(1);
-      doc.line(margin, y, pageW - margin, y);
-
-      // Caixa cliente
-      y += 16;
-
-      const cliente = ($val('cliente') || '').trim();
-      const tel = formatPhoneDisplay(($val('telefone') || '').trim());
-      const end = ($val('endereco') || '').trim();
-
-      doc.setFillColor(234, 242, 255);
-      doc.setDrawColor(219, 234, 254);
-      doc.roundedRect(margin, y, contentW, 72, 10, 10, "FD");
-
-      let cy = y + 22;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(11, 94, 215);
-      doc.text("Cliente:", margin + 14, cy);
-
-      doc.setTextColor(17, 24, 39);
-      doc.text(cliente || "", margin + 70, cy);
-
-      doc.setTextColor(11, 94, 215);
-      doc.text("TEL:", margin + 340, cy);
-
-      doc.setTextColor(17, 24, 39);
-      doc.text(tel || "", margin + 380, cy);
-
-      cy += 22;
-      if(end){
-        doc.setTextColor(11, 94, 215);
-        doc.text("END:", margin + 14, cy);
-
-        doc.setTextColor(17, 24, 39);
-        doc.setFont("helvetica", "normal");
-        const endLines = doc.splitTextToSize(end, contentW - 70);
-        doc.text(endLines, margin + 70, cy);
-      }
-
-      y += 92;
-
-      // Título
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(11, 18, 32);
-      doc.text("Proposta Comercial", pageW/2, y, { align: "center" });
-      y += 28;
-
-      // Tabela cabeçalho
-      doc.setFontSize(10);
-      doc.setTextColor(11, 94, 215);
-      doc.setFont("helvetica", "bold");
-      doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
-      doc.text("QTD", margin + contentW - 160, y, { align: "center" });
-      doc.text("SUBTOTAL", margin + contentW, y, { align: "right" });
-
-      y += 8;
-      doc.setDrawColor(15, 23, 42);
-      doc.setLineWidth(1.4);
-      doc.line(margin, y, pageW - margin, y);
-      y += 14;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.setLineWidth(0.6);
-      doc.setDrawColor(238, 242, 247);
-
-      let total = 0;
-      const items = state.items || [];
-      for(const it of items){
-        const desc = (it.desc || "Serviço").trim();
-        const qty = Number(it.qty) || 1;
-        const sub = (Number(it.price) || 0) * qty;
-        total += sub;
-
-        if(y > pageH - margin - 180){
-          doc.addPage();
-          y = margin;
-
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(11, 94, 215);
-          doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
-          doc.text("QTD", margin + contentW - 160, y, { align: "center" });
-          doc.text("SUBTOTAL", margin + contentW, y, { align: "right" });
-          y += 8;
-          doc.setDrawColor(15, 23, 42);
-          doc.setLineWidth(1.4);
-          doc.line(margin, y, pageW - margin, y);
-          y += 14;
-
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(51, 65, 85);
-          doc.setDrawColor(238, 242, 247);
-          doc.setLineWidth(0.6);
-        }
-
-        const descLines = doc.splitTextToSize(desc, contentW - 210);
-        const rowH = Math.max(18, descLines.length * 12);
-
-        doc.text(descLines, margin, y);
-        doc.setFont("helvetica", "bold");
-        doc.text(String(qty), margin + contentW - 160, y, { align: "center" });
-        doc.text(pdfMoney(sub), margin + contentW, y, { align: "right" });
-
-        y += rowH - 6;
-        doc.setFont("helvetica", "normal");
-        doc.line(margin, y, pageW - margin, y);
-        y += 14;
-      }
-
-      // Totais
-      const desconto = parseBRL($val('desconto') || '');
-      const totalFinal = Math.max(0, total - desconto);
-
-      const panelW = 300;
-      const px = pageW - margin - panelW;
-      const py = y + 10;
-
-      doc.setDrawColor(238, 242, 247);
-      doc.setLineWidth(1);
-      doc.line(px, py, px + panelW, py);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(102, 112, 133);
-      doc.text("Desconto:", px, py + 18);
-      doc.text(pdfMoney(desconto), px + panelW, py + 18, { align: "right" });
-
-      doc.setFontSize(11);
-      doc.setTextColor(11, 18, 32);
-      doc.text("TOTAL GERAL", px, py + 42);
-      doc.setFontSize(16);
-      doc.text(pdfMoney(totalFinal), px + panelW, py + 44, { align: "right" });
-
-      y = py + 70;
-
-      // Observações / Pagamento
-      const obs = ($val('obs') || '').trim();
-      const pagamento = ($val('pagamento') || '').trim();
-
-      const boxW = contentW;
-      const boxX = margin;
-
-      const obsLines = obs ? doc.splitTextToSize(obs, boxW - 28) : [""];
-      const obsH = Math.max(58, 26 + obsLines.length * 12);
-
-      if(y + obsH + 90 > pageH - margin){
-        doc.addPage();
-        y = margin;
-      }
-
-      doc.setDrawColor(238, 242, 247);
-      doc.setLineWidth(1);
-
-      doc.roundedRect(boxX, y, boxW, obsH, 10, 10, "S");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(11, 94, 215);
-      doc.text("OBSERVAÇÕES", boxX + 14, y + 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(obsLines, boxX + 14, y + 36);
-
-      y += obsH + 10;
-
-      const payH = 58;
-      if(y + payH > pageH - margin){
-        doc.addPage();
-        y = margin;
-      }
-
-      doc.roundedRect(boxX, y, boxW, payH, 10, 10, "S");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(11, 94, 215);
-      doc.text("FORMA DE PAGAMENTO", boxX + 14, y + 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      doc.text(pagamento || "", boxX + 14, y + 38);
-
-      return doc.output("blob");
-    }
-
-    async function compartilharPdf(){
-      const fileName = "proposta.pdf";
-      try{
-        const blob = await gerarPdfRealBlob();
-        const file = new File([blob], fileName, { type: "application/pdf" });
-
-        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
-          await navigator.share({
-            title: "Proposta Comercial",
-            text: "Segue a proposta em PDF.",
-            files: [file]
-          });
-          return;
-        }
-
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url), 4000);
-
-        alert("Seu Android não liberou o compartilhamento automático. Abri o PDF e também baixei o arquivo.");
-      }catch(err){
-        alert("Não foi possível gerar/compartilhar o PDF: " + (err && err.message ? err.message : err));
-      }
-    }
-
-    document.getElementById('btnAdd').addEventListener('click', function(e){ try{ e.preventDefault(); e.stopPropagation(); }catch(_){} addItem(); });
-
-  document.getElementById('btnPdf').addEventListener('click', () => {
-    fillPDF();
-    window.print();
-  });
-  document.getElementById('btnLimpar').addEventListener('click', () => {
-    state.items = [];
-    renderItems();
-    document.getElementById('cliente').value = "";
-    document.getElementById('endereco').value = "";
-    document.getElementById('telefone').value = "";
-    document.getElementById('obs').value = "";
-    document.getElementById('pagamento').value = "";
+     // init
     document.getElementById('data').value = todayISO();
-  const vEl = document.getElementById('validade'); if(vEl && !vEl.value) vEl.value = "7 dias";
+    renderItems(); // começa zerado
     recalc();
-  });
-
-  const descontoEl = document.getElementById('desconto');
-  if(descontoEl){
-    descontoEl.addEventListener('input', recalc);
-    descontoEl.addEventListener('blur', () => {
-      const v = parseBRL(descontoEl.value);
-      // formata no padrão pt-BR (sem R$ porque já tem o prefixo)
-      descontoEl.value = (v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      recalc();
+        // PWA: Service Worker (BETA 0.1.17)
+    if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js?v=0.1.26').catch(()=>{});
     });
-  }
-
-  // init
-  document.getElementById('data').value = todayISO();
-  renderItems(); // começa zerado
-  recalc();
-
-// PWA: Service Worker (BETA 0.1.25)
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+    }
+    
   });
-}
 
 </script>
 <div id="betaBadge"></div>
