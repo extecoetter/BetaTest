@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.34
+     Versão: BETA 0.1.35
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.34: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.35: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -762,7 +762,8 @@
         s.onload = function(){ resolve(); };
         s.onerror = function(){ reject(new Error('Não consegui carregar libs/jspdf.umd.min.js')); };
         document.head.appendChild(s);
-      });
+    }catch(e){ showFatal('[ERRO] init: ' + (e && e.message ? e.message : e)); }
+  });
       return __jspdfLoading;
     }
 
@@ -983,12 +984,89 @@ document.addEventListener('DOMContentLoaded', attach, { once:true });
     });
   })();
 
+
+  // ===== Robustez: fallback de cliques + debug visível ====================
+  function showFatal(msg){
+    try{
+      var el = document.getElementById('fatalBar');
+      if(!el){
+        el = document.createElement('div');
+        el.id = 'fatalBar';
+        el.style.position = 'fixed';
+        el.style.left = '12px';
+        el.style.right = '12px';
+        el.style.bottom = '12px';
+        el.style.padding = '10px 12px';
+        el.style.background = '#111827';
+        el.style.color = '#fff';
+        el.style.borderRadius = '10px';
+        el.style.zIndex = 99999;
+        el.style.fontSize = '12px';
+        el.style.boxShadow = '0 6px 18px rgba(0,0,0,.25)';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+    }catch(e){}
+  }
+
+  window.addEventListener('error', function(e){
+    showFatal('[ERRO] ' + (e && e.message ? e.message : 'script error'));
+  });
+
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason ? e.reason : null;
+    showFatal('[ERRO] ' + (r && r.message ? r.message : 'promise error'));
+  });
+
+  function onLimparClick(ev){
+    if(ev && ev.preventDefault) ev.preventDefault();
+    try{
+      state.items = [];
+      renderItems();
+      document.getElementById('cliente').value = "";
+      document.getElementById('endereco').value = "";
+      document.getElementById('telefone').value = "";
+      document.getElementById('obs').value = "";
+      document.getElementById('pagamento').value = "";
+      document.getElementById('data').value = todayISO();
+      var vEl = document.getElementById('validade'); if(vEl && !vEl.value) vEl.value = "7 dias";
+      var dEl = document.getElementById('desconto'); if(dEl) dEl.value = "";
+      // reset parcelamento UI se existir
+      var p = document.getElementById('parcelamento'); if(p) p.value = "";
+      var pb = document.getElementById('parcelasBox'); if(pb) pb.style.display = "none";
+      recalc();
+    }catch(err){
+      showFatal('[ERRO] Limpar: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  function onGerarPdfClick(ev){
+    if(ev && ev.preventDefault) ev.preventDefault();
+    try{
+      syncParcelamentoToObs();
+      fillPDF();
+      window.print();
+    }catch(err){
+      showFatal('[ERRO] Gerar PDF: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  async function onShareClick(ev){
+    if(ev && ev.preventDefault) ev.preventDefault();
+    try{
+      await compartilharPdf();
+    }catch(err){
+      showFatal('[ERRO] Compartilhar: ' + (err && err.message ? err.message : err));
+    }
+  }
+  // =======================================================================
+
 </script>
 
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.34";
+  window.APP_VERSION = "0.1.35";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -999,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', attach, { once:true });
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.34</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.35</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1168,9 +1246,9 @@ document.addEventListener('DOMContentLoaded', attach, { once:true });
   
 <div class="actions">
   <div class="inner">
-    <button class="btn" id="btnLimpar" type="button">Limpar</button>
-    <button class="btn primary" id="btnPdf" type="button">Gerar PDF</button>
-      <button class="btn" id="btnShare" type="button">Compartilhar PDF</button>
+    <button class="btn" id="btnLimpar" type="button" onclick="onLimparClick(event)">Limpar</button>
+    <button class="btn primary" id="btnPdf" type="button" onclick="onGerarPdfClick(event)">Gerar PDF</button>
+      <button class="btn" id="btnShare" type="button" onclick="onShareClick(event)">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1454,7 +1532,8 @@ const obs = document.getElementById('obs').value.trim();
 
     // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
   document.addEventListener('DOMContentLoaded', function(){
-          document.getElementById('btnAdd').addEventListener('click', addItem);
+    try{
+document.getElementById('btnAdd').addEventListener('click', addItem);
     setupParcelamentoUI();
      document.getElementById('btnPdf').addEventListener('click', () => {
       syncParcelamentoToObs();
@@ -1489,7 +1568,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.34)
+        // PWA: Service Worker (BETA 0.1.35)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       
@@ -1724,7 +1803,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
     // ======================================================================
 
 
-    navigator.serviceWorker.register('service-worker.js?v=0.1.34').catch(()=>{});
+    navigator.serviceWorker.register('service-worker.js?v=0.1.35').catch(()=>{});
     });
     }
     
