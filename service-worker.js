@@ -1,11 +1,11 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-27";
+const CACHE_NAME = "orcamento-clima-beta-0-1-28";
 
 const CORE = [
   "./",
   "./index.html",
   "./config.js",
   "./manifest.json",
-  "./assets/logo.png",
+  "./logo.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
