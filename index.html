@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.17
+     Versão: BETA 0.1.18
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -172,6 +172,7 @@
     .qty{
       display:flex;
       gap:10px;
+      flex-wrap: wrap;
       align-items:center;
       justify-content:space-between;
       border:1px solid var(--line);
@@ -201,6 +202,7 @@
       cursor:pointer;
       display:flex;
       gap:10px;
+      flex-wrap: wrap;
       justify-content:center;
       align-items:center;
       letter-spacing:.2px;
@@ -250,6 +252,7 @@
       margin:0 auto;
       display:flex;
       gap:10px;
+      flex-wrap: wrap;
     }
     .btn{
       flex:1;
@@ -660,7 +663,7 @@
 }
 
   
-/* --- BETA 0.1.17: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.18: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -709,7 +712,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.17";
+  window.APP_VERSION = "0.1.18";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -1157,6 +1160,22 @@ const obs = document.getElementById('obs').value.trim();
     // === PDF REAL (sem html2canvas) =======================================
     let __logoDataUrl = null;
 
+    function imgElementToDataURL(img){
+      try{
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if(!w || !h) return null;
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        return c.toDataURL("image/png");
+      }catch(e){
+        return null;
+      }
+    }
+
     async function fetchAsDataURL(url){
       const res = await fetch(url, { cache: "force-cache" });
       if(!res.ok) throw new Error("Não consegui carregar: " + url);
@@ -1171,9 +1190,31 @@ const obs = document.getElementById('obs').value.trim();
 
     async function getLogoDataUrl(){
       if(__logoDataUrl) return __logoDataUrl;
-      const logoPath = (INSTALLER && INSTALLER.logo) ? INSTALLER.logo : "assets/logo.png";
-      __logoDataUrl = await fetchAsDataURL(logoPath);
-      return __logoDataUrl;
+
+      // 1) tenta pegar do <img> já carregado na tela (mais confiável no PWA com cache)
+      const img = document.querySelector('img[src*="assets/logo"], img#logo, header img');
+      if(img && (img.complete && (img.naturalWidth || img.width))){
+        const d = imgElementToDataURL(img);
+        if(d){
+          __logoDataUrl = d;
+          return __logoDataUrl;
+        }
+      }
+
+      // 2) tenta via fetch (caminhos comuns)
+      const candidates = [];
+      if(typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.logo) candidates.push(INSTALLER.logo);
+      candidates.push("assets/logo.png");
+      candidates.push("./assets/logo.png");
+
+      for(const p of candidates){
+        try{
+          __logoDataUrl = await fetchAsDataURL(p);
+          return __logoDataUrl;
+        }catch(e){}
+      }
+
+      throw new Error("Logo não carregou (confira /assets/logo.png e o service-worker cache).");
     }
 
     function pdfMoney(v){
@@ -1490,7 +1531,7 @@ const obs = document.getElementById('obs').value.trim();
   renderItems(); // começa zerado
   recalc();
 
-// PWA: Service Worker (BETA 0.1.17)
+// PWA: Service Worker (BETA 0.1.18)
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js').catch(()=>{});
