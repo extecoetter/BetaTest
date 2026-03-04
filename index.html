@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.32
+     Versão: BETA 0.1.34
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.32: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.34: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -709,7 +709,262 @@
       box.id = 'betaDebug';
       box.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;max-height:32vh;overflow:auto;z-index:99999;background:rgba(0,0,0,.88);color:#fff;font:12px/1.35 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial;padding:10px;border-radius:12px;display:none;white-space:pre-wrap;';
       function attach(){ try{ (document.body||document.documentElement).appendChild(box); }catch(e){} }
-      if(document.body) attach(); else document.addEventListener('DOMContentLoaded', attach, { once:true });
+      if(document.body) attach(); else 
+    // ===== Parcelamento (mensagem automática nas observações) ==============
+    function getParcelamentoMsg(){
+      var p = document.getElementById('parcelamento');
+      var q = document.getElementById('parcelas');
+      if(!p || p.value !== 'sim') return '';
+      var vezes = (q && q.value) ? q.value : '10';
+      return "Parcelamos em até " + vezes + "x (consultar juros da máquina).";
+    }
+
+    function syncParcelamentoToObs(){
+      var obs = document.getElementById('obs');
+      if(!obs) return;
+
+      // remove mensagem antiga (se existir)
+      obs.value = obs.value.replace(/\n?Parcelamos em até\s+\d+x\s+\(consultar juros da máquina\)\.?/gi, '');
+
+      var msg = getParcelamentoMsg();
+      if(msg){
+        // adiciona com quebra de linha
+        var prefix = obs.value.trim() ? "\n" : "";
+        obs.value = (obs.value || "") + prefix + msg;
+      }
+    }
+
+    function setupParcelamentoUI(){
+      var p = document.getElementById('parcelamento');
+      var box = document.getElementById('parcelasBox');
+      var q = document.getElementById('parcelas');
+      if(!p || !box || !q) return;
+
+      function refresh(){
+        box.style.display = (p.value === 'sim') ? 'block' : 'none';
+        syncParcelamentoToObs();
+      }
+      p.addEventListener('change', refresh);
+      q.addEventListener('change', refresh);
+      refresh();
+    }
+
+    // ===== Compartilhar PDF (isolado, não quebra o app) ====================
+    var __jspdfLoading = null;
+
+    function loadJsPdf(){
+      if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+      if(__jspdfLoading) return __jspdfLoading;
+
+      __jspdfLoading = new Promise(function(resolve, reject){
+        var s = document.createElement('script');
+        s.src = 'libs/jspdf.umd.min.js';
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('Não consegui carregar libs/jspdf.umd.min.js')); };
+        document.head.appendChild(s);
+      });
+      return __jspdfLoading;
+    }
+
+    function imgToJpegDataUrl(img){
+      var w = img.naturalWidth || img.width;
+      var h = img.naturalHeight || img.height;
+      var c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0);
+      return c.toDataURL('image/jpeg', 0.92);
+    }
+
+    function loadLogoAsJpegDataUrl(){
+      return new Promise(function(resolve, reject){
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function(){
+          try{ resolve(imgToJpegDataUrl(img)); }
+          catch(e){ reject(new Error('Falha ao converter logo.')); }
+        };
+        img.onerror = function(){ reject(new Error('Logo não carregou (logo.png).')); };
+        img.src = 'logo.png?v=' + encodeURIComponent(window.APP_VERSION || '');
+      });
+    }
+
+    function pdfMoney(v){ return brl.format(Number(v) || 0); }
+
+    async function gerarPdfBlobShare(){
+      await loadJsPdf();
+      if(!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF não disponível.');
+
+      // garante que a mensagem de parcelamento está nas observações antes de montar o PDF
+      syncParcelamentoToObs();
+
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      var pageW = doc.internal.pageSize.getWidth();
+      var pageH = doc.internal.pageSize.getHeight();
+      var margin = 42;
+      var contentW = pageW - margin*2;
+
+      // Logo
+      try{
+        var logoJpeg = await loadLogoAsJpegDataUrl();
+        doc.addImage(logoJpeg, 'JPEG', margin, margin-12, 260, 120, undefined, 'FAST');
+      }catch(e){}
+
+      var y = margin + 86;
+
+      var cliente = document.getElementById('cliente') ? (document.getElementById('cliente').value || '').trim() : '';
+      var telefone = document.getElementById('telefone') ? (document.getElementById('telefone').value || '').trim() : '';
+      var endereco = document.getElementById('endereco') ? (document.getElementById('endereco').value || '').trim() : '';
+
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(12);
+      doc.setTextColor(11,94,215);
+      doc.text('Cliente:', margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(cliente || '', margin+62, y);
+
+      y += 18;
+      doc.setTextColor(11,94,215);
+      doc.text('Tel:', margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(telefone || '', margin+30, y);
+
+      y += 18;
+      if(endereco){
+        doc.setTextColor(11,94,215);
+        doc.text('End:', margin, y);
+        doc.setTextColor(17,24,39);
+        doc.setFont('helvetica','normal');
+        var endLines = doc.splitTextToSize(endereco, contentW-40);
+        doc.text(endLines, margin+34, y);
+        y += endLines.length * 12;
+      }
+
+      y += 22;
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(14);
+      doc.setTextColor(11,18,32);
+      doc.text('Proposta Comercial', pageW/2, y, { align:'center' });
+
+      y += 26;
+      doc.setFontSize(10);
+      doc.setTextColor(11,94,215);
+      doc.text('DESCRIÇÃO DO SERVIÇO', margin, y);
+      doc.text('QTD', margin + contentW - 160, y, { align:'center' });
+      doc.text('SUBTOTAL', margin + contentW, y, { align:'right' });
+
+      y += 8;
+      doc.setDrawColor(15,23,42);
+      doc.setLineWidth(1.2);
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(51,65,85);
+      doc.setLineWidth(0.6);
+      doc.setDrawColor(238,242,247);
+
+      var total = 0;
+      var items = (state && state.items) ? state.items : [];
+
+      for(var i=0;i<items.length;i++){
+        var it = items[i] || {};
+        var desc = (it.desc != null) ? String(it.desc) : 'Serviço';
+        var qty = it.qty ? Number(it.qty) : 1;
+        var price = it.price ? Number(it.price) : 0;
+        var sub = qty * price;
+        total += sub;
+
+        if(y > pageH - margin - 180){
+          doc.addPage();
+          y = margin;
+        }
+
+        var descLines = doc.splitTextToSize(desc, contentW - 210);
+        doc.text(descLines, margin, y);
+
+        doc.setFont('helvetica','bold');
+        doc.text(String(qty), margin + contentW - 160, y, { align:'center' });
+        doc.text(pdfMoney(sub), margin + contentW, y, { align:'right' });
+        doc.setFont('helvetica','normal');
+
+        y += Math.max(18, descLines.length * 12);
+        doc.line(margin, y, pageW - margin, y);
+        y += 12;
+      }
+
+      var descontoRaw = document.getElementById('desconto') ? document.getElementById('desconto').value : '';
+      var desconto = parseBRL(descontoRaw || '');
+      var totalFinal = Math.max(0, total - desconto);
+
+      y += 10;
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(102,112,133);
+      doc.text('Desconto:', margin + contentW - 300, y);
+      doc.text(pdfMoney(desconto), margin + contentW, y, { align:'right' });
+
+      y += 22;
+      doc.setFontSize(12);
+      doc.setTextColor(11,18,32);
+      doc.text('TOTAL GERAL', margin + contentW - 300, y);
+      doc.setFontSize(16);
+      doc.text(pdfMoney(totalFinal), margin + contentW, y, { align:'right' });
+
+      // Observações e pagamento
+      var obs = document.getElementById('obs') ? (document.getElementById('obs').value || '').trim() : '';
+      var pagamento = document.getElementById('pagamento') ? (document.getElementById('pagamento').value || '').trim() : '';
+
+      y += 34;
+      doc.setFontSize(10);
+      doc.setTextColor(11,94,215);
+      doc.setFont('helvetica','bold');
+      doc.text('OBSERVAÇÕES', margin, y);
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(51,65,85);
+      var obsLines = obs ? doc.splitTextToSize(obs, contentW) : [''];
+      doc.text(obsLines, margin, y + 14);
+
+      y += 44 + obsLines.length * 10;
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(11,94,215);
+      doc.text('FORMA DE PAGAMENTO', margin, y);
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(51,65,85);
+      var payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [''];
+      doc.text(payLines, margin, y + 14);
+
+      return doc.output('blob');
+    }
+
+    async function compartilharPdf(){
+      try{
+        var blob = await gerarPdfBlobShare();
+        var file = new File([blob], 'proposta.pdf', { type:'application/pdf' });
+
+        // Android/alguns browsers: share com arquivo
+        if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+          await navigator.share({ title:'Proposta Comercial', files:[file] });
+          return;
+        }
+
+        // fallback: abre o PDF
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
+        alert('Seu aparelho não liberou o compartilhamento automático. Abri o PDF.');
+      }catch(err){
+        alert('Erro ao compartilhar PDF: ' + (err && err.message ? err.message : err));
+      }
+    }
+    // ======================================================================
+
+
+document.addEventListener('DOMContentLoaded', attach, { once:true });
       return box;
     }
     function show(msg){
@@ -728,42 +983,12 @@
     });
   })();
 
-// ===== Parcelamento automático =====
-(function(){
-  const p = document.getElementById('parcelamento');
-  const box = document.getElementById('parcelasBox');
-  const parcelas = document.getElementById('parcelas');
-  const obs = document.getElementById('obs');
-
-  function atualizar(){
-    if(!p || !obs) return;
-
-    if(p.value === "sim"){
-      box.style.display = "block";
-      const txt = "\nParcelamos em até " + parcelas.value + "x (consultar juros da máquina).";
-      if(!obs.value.includes("Parcelamos em até")){
-        obs.value += txt;
-      }
-    }else{
-      box.style.display = "none";
-      obs.value = obs.value.replace(/\n?Parcelamos em até .*maquina\)\.?/i,"");
-    }
-  }
-
-  if(p){
-    p.addEventListener("change", atualizar);
-  }
-  if(parcelas){
-    parcelas.addEventListener("change", atualizar);
-  }
-})();
-
 </script>
 
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.32";
+  window.APP_VERSION = "0.1.34";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -774,7 +999,7 @@
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.32</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.34</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -945,6 +1170,7 @@
   <div class="inner">
     <button class="btn" id="btnLimpar" type="button">Limpar</button>
     <button class="btn primary" id="btnPdf" type="button">Gerar PDF</button>
+      <button class="btn" id="btnShare" type="button">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1229,11 +1455,15 @@ const obs = document.getElementById('obs').value.trim();
     // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
   document.addEventListener('DOMContentLoaded', function(){
           document.getElementById('btnAdd').addEventListener('click', addItem);
+    setupParcelamentoUI();
      document.getElementById('btnPdf').addEventListener('click', () => {
+      syncParcelamentoToObs();
       fillPDF();
       window.print();
     });
-    document.getElementById('btnLimpar').addEventListener('click', () => {
+        var btnShare = document.getElementById('btnShare');
+    if(btnShare){ btnShare.addEventListener('click', compartilharPdf); }
+document.getElementById('btnLimpar').addEventListener('click', () => {
       state.items = [];
       renderItems();
       document.getElementById('cliente').value = "";
@@ -1259,7 +1489,7 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.32)
+        // PWA: Service Worker (BETA 0.1.34)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       
@@ -1494,7 +1724,7 @@ const obs = document.getElementById('obs').value.trim();
     // ======================================================================
 
 
-    navigator.serviceWorker.register('service-worker.js?v=0.1.32').catch(()=>{});
+    navigator.serviceWorker.register('service-worker.js?v=0.1.34').catch(()=>{});
     });
     }
     
