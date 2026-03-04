@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-18";
+const CACHE_NAME = "orcamento-clima-beta-0-1-20";
 
 const ASSETS = [
   "./",
@@ -6,14 +6,14 @@ const ASSETS = [
   "./config.js",
   "./manifest.json",
 
-  // Assets / libs (necessário pro PDF REAL e pro logo no PDF)
+  // PDF real + logo
   "./assets/logo.png",
   "./libs/jspdf.umd.min.js",
 
-  // (opcional) se ainda existir no seu projeto, não atrapalha
+  // (se existir, não atrapalha)
   "./libs/html2canvas.min.js",
 
-  // Ícones
+  // Ícones (ajuste os nomes se os seus forem diferentes)
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
@@ -41,7 +41,6 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(
       fetch(req).then((res) => {
-        // atualiza o cache do index quando online
         const copy = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy)).catch(() => {});
         return res;
@@ -55,7 +54,6 @@ self.addEventListener("fetch", (event) => {
     caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req).then((res) => {
-        // salva em cache para funcionar offline depois
         const copy = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
         return res;
