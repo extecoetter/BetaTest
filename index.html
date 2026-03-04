@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.30
+     Versão: BETA 0.1.31
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.30: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.31: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -685,7 +685,19 @@
   #betaBadge, #betaDebug{ display:none !important; }
 }
 
-  </style>
+  
+.beta-inline{
+  display:inline-block;
+  margin-left:8px;
+  padding:2px 8px;
+  border-radius:999px;
+  background:#e53935;
+  color:#ffffff;
+  font-weight:700;
+  font-size:12px;
+  vertical-align:middle;
+}
+</style>
 
 <script>
   // BETA DEBUG (0.1.3) - mostra erros na tela
@@ -720,7 +732,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.30";
+  window.APP_VERSION = "0.1.31";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -731,7 +743,7 @@
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF.</p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.31</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1197,7 +1209,7 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.30)
+        // PWA: Service Worker (BETA 0.1.31)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       
@@ -1432,7 +1444,7 @@ const obs = document.getElementById('obs').value.trim();
     // ======================================================================
 
 
-    navigator.serviceWorker.register('service-worker.js?v=0.1.30').catch(()=>{});
+    navigator.serviceWorker.register('service-worker.js?v=0.1.31').catch(()=>{});
     });
     }
     
