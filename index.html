@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.556
+     Versão: BETA 0.1.55
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -972,6 +972,51 @@
     }catch(e){}
   }
   // ===============================================================
+  // ===== Hooks: manter PDF pré-gerado (evita "user gesture" e PDF branco no Android) =====
+  (function(){
+    function safeBindInput(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      el.addEventListener('input', function(){ try{ _agendarPdfCache(); }catch(e){} });
+      el.addEventListener('change', function(){ try{ _agendarPdfCache(); }catch(e){} });
+    }
+
+    // Campos que impactam o PDF
+    ['cliente','telefone','endereco','prestador','nomePrestador','detalhes','garantia','data','validade','materiais','desconto','parcelamento','parcelas','obs','pagamento']
+      .forEach(safeBindInput);
+
+    // Se as funções existirem, "encapa" para agendar cache após mudanças
+    function wrap(fnName){
+      var fn = window[fnName];
+      if(typeof fn !== 'function') return;
+      window[fnName] = function(){
+        var r = fn.apply(this, arguments);
+        try{ _agendarPdfCache(); }catch(e){}
+        return r;
+      };
+    }
+    ['recalc','addItem','removeItem'].forEach(wrap);
+
+    // setItem pode ser chamado muito; encapa com debounce curto
+    (function(){
+      var fn = window.setItem;
+      if(typeof fn !== 'function') return;
+      var t = null;
+      window.setItem = function(){
+        var r = fn.apply(this, arguments);
+        try{
+          if(t) clearTimeout(t);
+          t = setTimeout(function(){ try{ _agendarPdfCache(); }catch(e){} }, 120);
+        }catch(e){}
+        return r;
+      };
+    })();
+
+    // Primeira geração após carregar (para o 1º clique no share ser instantâneo)
+    try{ setTimeout(function(){ try{ _agendarPdfCache(); }catch(e){} }, 300); }catch(e){}
+  })();
+  // =============================================================================
+
 
   async function compartilharPdf(){
     // Atualiza observações/parcelamento antes de gerar
@@ -1073,72 +1118,7 @@
     <div class="card">
       <div id="servicesList" class="grid" style="gap:12px"></div>
 
-      
-      <button class="add" id="btnAddItem" type="button">
-        <span class="plus">+</span> ADICIONAR ITEM
-      </button>
-
-      <div class="totals">
-        <div class="grand">
-          <span>Total geral</span>
-          <span class="value" id="totalLabel">R$ 0,00</span>
-        </div>
-      </div>
-
-      <div style="margin-top:12px" class="grid cols-2">
-        <div>
-          <label>Garantia (dias)</label>
-          <input id="garantia" inputmode="numeric" placeholder="Ex: 90" value="90"/>
-        </div>
-        <div>
-          <label>Desconto</label>
-          <div class="money">
-            <span>R$</span>
-            <input id="desconto" inputmode="decimal" placeholder="0,00" value="0,00"/>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:10px">
-        <label>Detalhes do serviço</label>
-        <textarea id="detalhes" placeholder="Ex: instalação com vácuo, suporte, etc."></textarea>
-      </div>
-
-      <div style="margin-top:10px" class="grid cols-2">
-        <div>
-          <label>Parcelamento</label>
-          <select id="parcelamento">
-            <option value="nao">Não</option>
-            <option value="sim">Sim</option>
-          </select>
-        </div>
-        <div id="parcelasBox" style="display:none">
-          <label>Parcelas</label>
-          <select id="parcelas">
-            <option value="2">2x</option>
-            <option value="3">3x</option>
-            <option value="4">4x</option>
-            <option value="5">5x</option>
-            <option value="6">6x</option>
-            <option value="10">10x</option>
-            <option value="12">12x</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="margin-top:10px">
-        <label>Observações</label>
-        <textarea id="obs" placeholder="Observações (serão incluídas no PDF)"></textarea>
-      </div>
-
-      <div style="margin-top:10px">
-        <label>Forma de pagamento</label>
-        <textarea id="pagamento" placeholder="Ex: Pix, cartão, etc."></textarea>
-      </div>
-
-      <div style="margin-top:12px" class="grid cols-2">
-        <button class="btn" id="btnLimpar" type="button">Novo cálculo</button>
- type="button" onclick="onShareClick(event)">Compartilhar PDF</button>
+      <button class="btn" id="btnShare" type="button" onclick="compartilharPdf()">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1196,16 +1176,16 @@
   const state = { items: [] };
   const listEl = document.getElementById('servicesList');
   // === BETA PATCH START: iPhone UID ==================================
+
+
 // iPhone/Safari: crypto.randomUUID pode não existir
 function uid(){
   try{
-    if(window.crypto && typeof window.crypto.randomUUID === 'function'){
-      return window.crypto.randomUUID();
-    }
-  }catch(e){}
+    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
+  }  // === BETA PATCH END: iPhone UID ====================================
+catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
-// === BETA PATCH END: iPhone UID ====================================
 
 
   function addItem(){
@@ -1462,96 +1442,314 @@ const obs = document.getElementById('obs').value.trim();
   }
   // =======================================================================
 
-  
-  // ===== Handlers (botões) ===============================================
-  function onAddClick(ev){
-    if(ev && ev.preventDefault) ev.preventDefault();
-    try{ addItem(); _agendarPdfCache(); }catch(e){ if(window.__betaShow) window.__betaShow('[ERRO] add: ' + (e.message||e)); }
-  }
-
+  // ===== Handlers (fallback para botões) ==================================
   function onLimparClick(ev){
     if(ev && ev.preventDefault) ev.preventDefault();
     try{
-      // limpa itens
-      if(window.state){ state.items = []; }
-      renderItems();
-      // limpa campos
-      var ids = ['cliente','telefone','endereco','validade','garantia','detalhes','desconto','obs','pagamento'];
+      if(typeof clearAll === 'function'){ clearAll(); return; }
+      // fallback simples
+      if(window.state && state.items){ state.items = []; }
+      if(typeof renderItems === 'function') renderItems();
+      var ids = ['cliente','telefone','endereco','desconto','obs','pagamento'];
       for(var i=0;i<ids.length;i++){
         var el = document.getElementById(ids[i]);
         if(el) el.value = '';
       }
-      var dataEl = document.getElementById('data'); if(dataEl) dataEl.value = todayISO();
-      var p = document.getElementById('parcelamento'); if(p) p.value = 'nao';
+      var p = document.getElementById('parcelamento'); if(p) p.value = '';
       var pb = document.getElementById('parcelasBox'); if(pb) pb.style.display = 'none';
-      recalc();
-      _agendarPdfCache();
+      if(typeof recalc === 'function') recalc();
     }catch(e){
       if(window.__betaShow) window.__betaShow('[ERRO] limpar: ' + (e.message||e));
     }
   }
 
-  async function onShareClick(ev){
-    // IMPORTANTÍSSIMO: manter o share dentro do gesto do usuário
+  function onGerarPdfClick(ev){
     if(ev && ev.preventDefault) ev.preventDefault();
     try{
       syncParcelamentoToObs();
-      await compartilharPdf();
+      if(typeof fillPDF === 'function') fillPDF();
+      window.print();
+    }catch(e){
+      if(window.__betaShow) window.__betaShow('[ERRO] pdf: ' + (e.message||e));
+    }
+  }
+
+  async function onShareClick(ev){
+    if(ev && ev.preventDefault) ev.preventDefault();
+    try{
+      syncParcelamentoToObs();
+      if(typeof compartilharPdf === 'function'){
+        await compartilharPdf();
+      }else{
+        if(window.__betaShow) window.__betaShow('[ERRO] compartilharPdf não existe');
+      }
     }catch(e){
       if(window.__betaShow) window.__betaShow('[ERRO] share: ' + (e.message||e));
     }
   }
   // =======================================================================
-
-  document.addEventListener('DOMContentLoaded', function(){
-    try{
-      // init data
-      var dataEl = document.getElementById('data');
-      if(dataEl && !dataEl.value) dataEl.value = todayISO();
-
-      // botões (com proteção contra null)
-      var btnAddItem = document.getElementById('btnAddItem');
-      if(btnAddItem) btnAddItem.addEventListener('click', onAddClick);
-
-      var btnShare = document.getElementById('btnShare');
-      if(btnShare) btnShare.addEventListener('click', onShareClick);
-
-      var btnLimpar = document.getElementById('btnLimpar');
-      if(btnLimpar) btnLimpar.addEventListener('click', onLimparClick);
-
-      // desconto -> recalc + formatação
-      var descontoEl = document.getElementById('desconto');
-      if(descontoEl){
-        descontoEl.addEventListener('input', function(){ recalc(); _agendarPdfCache(); });
-        descontoEl.addEventListener('blur', function(){
-          var v = parseBRL(descontoEl.value);
-          descontoEl.value = (v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-          recalc(); _agendarPdfCache();
-        });
-      }
-
-      // campos que mudam o PDF/cache
-      ['cliente','telefone','endereco','validade','garantia','detalhes','obs','pagamento','parcelamento','parcelas']
-        .forEach(function(id){
-          var el = document.getElementById(id);
-          if(el) el.addEventListener('input', _agendarPdfCache);
-          if(el) el.addEventListener('change', _agendarPdfCache);
-        });
-
-      setupParcelamentoUI();
-
-      renderItems();
-      recalc();
-      _agendarPdfCache();
-
-      // PWA: Service Worker (BETA 0.1.55)
-      if('serviceWorker' in navigator){
-        navigator.serviceWorker.register('service-worker.js?v=' + encodeURIComponent(window.APP_VERSION || '0.1.55')).catch(function(){});
-      }
-    }catch(e){
-      if(window.__betaShow) window.__betaShow('[ERRO] init: ' + (e.message||e));
+document.addEventListener('DOMContentLoaded', function(){
+    // (BETA) Evitar quebra por IDs antigos que não existem mais.
+    var btnShare = document.getElementById('btnShare');
+    if(btnShare && typeof compartilharPdf === 'function'){
+      btnShare.addEventListener('click', compartilharPdf);
     }
   });
+     const descontoEl = document.getElementById('desconto');
+    if(descontoEl){
+      descontoEl.addEventListener('input', recalc);
+      descontoEl.addEventListener('blur', () => {
+        const v = parseBRL(descontoEl.value);
+        // formata no padrão pt-BR (sem R$ porque já tem o prefixo)
+        descontoEl.value = (v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        recalc();
+      });
+    }
+     // init
+    document.getElementById('data').value = todayISO();
+    renderItems(); // começa zerado
+    recalc();
+        // PWA: Service Worker (BETA 0.1.55)
+    if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      
+    // ===== Enviar no WhatsApp (PDF como arquivo) ==========================
+    // Importante: não dá para anexar PDF via link wa.me automaticamente.
+    // O jeito correto é abrir o "compartilhar" do sistema com o PDF anexado e escolher WhatsApp.
+    let __jspdfLoading = null;
+
+    function loadJsPdf(){
+      if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+      if(__jspdfLoading) return __jspdfLoading;
+
+      __jspdfLoading = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "libs/jspdf.umd.min.js";
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("Não consegui carregar libs/jspdf.umd.min.js"));
+        document.head.appendChild(s);
+      });
+      return __jspdfLoading;
+    }
+
+    function imgToJpegDataUrl(img){
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img, 0, 0);
+      return c.toDataURL("image/jpeg", 0.92);
+    }
+
+    function loadLogoAsJpegDataUrl(){
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          try{
+            resolve(imgToJpegDataUrl(img));
+          }catch(e){
+            reject(new Error("Falha ao converter logo."));
+          }
+        };
+        img.onerror = () => reject(new Error("Logo não carregou (logo.png)."));
+        img.src = "logo.png?v=" + encodeURIComponent(window.APP_VERSION || "");
+      });
+    }
+
+    function pdfMoney(v){
+      return brl.format(Number(v) || 0);
+    }
+
+    async function gerarPdfBlobWhats(){
+      await loadJsPdf();
+      if(!window.jspdf || !window.jspdf.jsPDF){
+        throw new Error("jsPDF não disponível.");
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+
+      const margin = 42;
+      const contentW = pageW - margin*2;
+
+      // Logo
+      try{
+        const logoJpeg = await loadLogoAsJpegDataUrl();
+        doc.addImage(logoJpeg, "JPEG", margin, margin-12, 260, 120, undefined, "FAST");
+      }catch(e){
+        // sem logo, segue
+      }
+
+      let y = margin + 86;
+
+      // Cliente
+      const cliente = (document.getElementById("cliente") ? (document.getElementById("cliente").value || "").trim() : "");
+      const telefone = (document.getElementById("telefone") ? (document.getElementById("telefone").value || "").trim() : "");
+      const endereco = (document.getElementById("endereco") ? (document.getElementById("endereco").value || "").trim() : "");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(11, 94, 215);
+      doc.text("Cliente:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(cliente || "", margin + 62, y);
+
+      y += 18;
+      doc.setTextColor(11, 94, 215);
+      doc.text("Tel:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(telefone || "", margin + 30, y);
+
+      y += 18;
+      if(endereco){
+        doc.setTextColor(11, 94, 215);
+        doc.text("End:", margin, y);
+        doc.setTextColor(17,24,39);
+        doc.setFont("helvetica", "normal");
+        const endLines = doc.splitTextToSize(endereco, contentW - 40);
+        doc.text(endLines, margin + 34, y);
+        y += (endLines.length * 12);
+      }
+
+      y += 22;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(11,18,32);
+      doc.text("Proposta Comercial", pageW/2, y, { align:"center" });
+
+      y += 26;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
+      doc.text("QTD", margin + contentW - 160, y, { align:"center" });
+      doc.text("SUBTOTAL", margin + contentW, y, { align:"right" });
+
+      y += 8;
+      doc.setDrawColor(15,23,42);
+      doc.setLineWidth(1.2);
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(51,65,85);
+      doc.setLineWidth(0.6);
+      doc.setDrawColor(238,242,247);
+
+      let total = 0;
+      const items = (state && state.items) ? state.items : [];
+
+      for(let i=0;i<items.length;i++){
+        const it = items[i];
+        const desc = ((it && it.desc) ? String(it.desc) : "Serviço");
+        const qty = (it && it.qty) ? Number(it.qty) : 1;
+        const price = (it && it.price) ? Number(it.price) : 0;
+        const sub = qty * price;
+        total += sub;
+
+        if(y > pageH - margin - 180){
+          doc.addPage();
+          y = margin;
+        }
+
+        const descLines = doc.splitTextToSize(desc, contentW - 210);
+        doc.text(descLines, margin, y);
+
+        doc.setFont("helvetica","bold");
+        doc.text(String(qty), margin + contentW - 160, y, { align:"center" });
+        doc.text(pdfMoney(sub), margin + contentW, y, { align:"right" });
+        doc.setFont("helvetica","normal");
+
+        y += Math.max(18, descLines.length * 12);
+        doc.line(margin, y, pageW - margin, y);
+        y += 12;
+      }
+
+      // Totais
+      const descontoRaw = (document.getElementById("desconto") ? document.getElementById("desconto").value : "");
+      const desconto = parseBRL(descontoRaw || "");
+      const totalFinal = Math.max(0, total - desconto);
+
+      y += 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(102,112,133);
+      doc.text("Desconto:", margin + contentW - 300, y);
+      doc.text(pdfMoney(desconto), margin + contentW, y, { align:"right" });
+
+      y += 22;
+      doc.setFontSize(12);
+      doc.setTextColor(11,18,32);
+      doc.text("TOTAL GERAL", margin + contentW - 300, y);
+      doc.setFontSize(16);
+      doc.text(pdfMoney(totalFinal), margin + contentW, y, { align:"right" });
+
+      // Observações / Pagamento
+      const obs = (document.getElementById("obs") ? (document.getElementById("obs").value || "").trim() : "");
+      const pagamento = (document.getElementById("pagamento") ? (document.getElementById("pagamento").value || "").trim() : "");
+
+      y += 34;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.setFont("helvetica","bold");
+      doc.text("OBSERVAÇÕES", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const obsLines = obs ? doc.splitTextToSize(obs, contentW) : [""];
+      doc.text(obsLines, margin, y + 14);
+
+      y += 44 + obsLines.length * 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(11, 94, 215);
+      doc.text("FORMA DE PAGAMENTO", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [""];
+      doc.text(payLines, margin, y + 14);
+
+      return doc.output("arraybuffer");
+    }
+
+    async function enviarWhatsApp(){
+      const fileName = "proposta.pdf";
+      try{
+        const blob = await gerarPdfBlobWhats();
+        const file = new File([blob], fileName, { type: "application/pdf" });
+
+        const nome = (typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.name) ? INSTALLER.name : "";
+        const msg = "Olá, segue a proposta do seu serviço de climatização.\n\nQualquer dúvida estou à disposição.\n\nAtt,\n" + nome;
+
+        // Preferência: abrir o COMPARTILHAR do sistema com o PDF anexado (escolher WhatsApp)
+        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({ title: "Proposta Comercial", text: msg, files: [file] });
+          return;
+        }
+
+        // Fallback: abre o PDF e abre o WhatsApp com a mensagem (sem anexo)
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+        setTimeout(()=>URL.revokeObjectURL(url), 8000);
+        alert("Este aparelho não permite anexar PDF direto aqui. Abri o PDF e o WhatsApp com a mensagem.");
+      }catch(err){
+        alert("Não foi possível enviar no WhatsApp: " + (err && err.message ? err.message : err));
+      }
+    }
+    // ======================================================================
+
+
+    navigator.serviceWorker.register('service-worker.js?v=0.1.55').catch(()=>{});
+    });
+    }
+    
+  });
+
 </script>
 </body>
 </html>
