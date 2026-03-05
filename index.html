@@ -1,9 +1,10 @@
+
 <!doctype html>
 
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 1.0.6
+     Versão: BETA 1.0.7
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -1437,7 +1438,7 @@ const obs = document.getElementById('obs').value.trim();
       // CLONE VISÍVEL FORA DA TELA (Android: evita branco e evita corte)
       const tmp = document.createElement("div");
       tmp.setAttribute("data-pdf-tmp","1");
-      tmp.style.cssText = "position:absolute;left:-10000px;top:0;width:794px;background:#fff;z-index:1;opacity:1;pointer-events:none;";;
+      tmp.style.cssText = "position:absolute;left:0;top:-10000px;width:794px;background:#fff;z-index:1;opacity:1;pointer-events:none;";
       const clone = pdfEl.cloneNode(true);
       clone.style.display = "block";          // remove display:none do .pdf
       clone.style.visibility = "visible";
