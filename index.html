@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.55
+     Versão: BETA 0.1.56
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -1212,11 +1212,13 @@
 // iPhone/Safari: crypto.randomUUID pode não existir
 function uid(){
   try{
-    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
-  }  // === BETA PATCH END: iPhone UID ====================================
-catch(e){}
+    if(window.crypto && typeof crypto.randomUUID === "function"){
+      return crypto.randomUUID();
+    }
+  }catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
+
 
 
   function addItem(){
@@ -1437,6 +1439,9 @@ const obs = document.getElementById('obs').value.trim();
   // 3) Compartilha como arquivo (Web Share API)
   // 4) Se não suportar, abre o PDF no viewer (bloburl) para compartilhar de lá
   async function compartilharPDF(evt){
+    // vars para restaurar estilos mesmo se der erro
+    let __prevDisplay = "", __prevPosition = "", __prevLeft = "", __prevTop = "", __prevVisibility = "";
+
     try{
       if(evt) evt.preventDefault();
 
@@ -1446,14 +1451,29 @@ const obs = document.getElementById('obs').value.trim();
       const pdfEl = document.getElementById("pdf");
       if(!pdfEl) throw new Error("Elemento #pdf não encontrado");
 
-      // garante renderização (alguns Androids geram branco se o elemento estiver fora de fluxo)
-      pdfEl.classList.remove("hidden");
+      // --- FIX ANDROID PDF EM BRANCO -----------------------------------
+      // O #pdf tem CSS ".pdf{display:none}".
+      // No Android, html2pdf/html2canvas vai gerar PDF branco se o elemento estiver com display:none.
+      // Então a gente força renderização OFFSCREEN (não pisca na tela) enquanto gera.
+      __prevDisplay = pdfEl.style.display;
+      __prevPosition = pdfEl.style.position;
+      __prevLeft = pdfEl.style.left;
+      __prevTop = pdfEl.style.top;
+      __prevVisibility = pdfEl.style.visibility;
 
-      const cliente = (document.getElementById("clienteNome")?.value || "cliente").trim();
+      pdfEl.style.display = "block";
+      pdfEl.style.position = "fixed";
+      pdfEl.style.left = "-10000px";
+      pdfEl.style.top = "0";
+      pdfEl.style.visibility = "visible";
+      // -----------------------------------------------------------------
+
+      const cliente = (document.getElementById("cliente")?.value || "cliente").trim();
       const safeCliente = cliente.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-]/g, "");
       const filename = `Orcamento_${safeCliente || "cliente"}.pdf`;
 
-            await new Promise(r=>setTimeout(r, 80));
+      // pequeno delay para a DOM/layout "assentar" no Android antes do capture
+      await new Promise(r=>setTimeout(r, 250));
 
       const opt = {
         margin: 8,
@@ -1466,7 +1486,12 @@ const obs = document.getElementById('obs').value.trim();
       // tenta share de arquivo (melhor UX)
       if(navigator.share && navigator.canShare){
         const pdfBlob = await html2pdf().set(opt).from(pdfEl).output("blob");
-        const file = new File([pdfBlob], filename, { type: "application/pdf" });
+        if(!pdfBlob || !pdfBlob.size) throw new Error("PDF vazio (blob size 0)");
+
+        const file = new File([pdfBlob], filename, { type: "application/pdf", lastModified: Date.now() });
+
+        // WhatsApp Android às vezes falha se tentar anexar imediatamente
+        await new Promise(r=>setTimeout(r, 250));
 
         if(navigator.canShare({ files: [file] })){
           await navigator.share({
@@ -1487,11 +1512,24 @@ const obs = document.getElementById('obs').value.trim();
       console.log("[ERRO] compartilharPDF:", err);
       alert("Não foi possível compartilhar o PDF automaticamente. Vou abrir a visualização para você compartilhar pelo botão do PDF.");
       try{ window.print(); }catch(e){}
+    } finally {
+      // restaura estilos
+      try{
+        const pdfEl = document.getElementById("pdf");
+        if(pdfEl){
+          pdfEl.style.display = __prevDisplay;
+          pdfEl.style.position = __prevPosition;
+          pdfEl.style.left = __prevLeft;
+          pdfEl.style.top = __prevTop;
+          pdfEl.style.visibility = __prevVisibility;
+        }
+      }catch(_){}
     }
   }
 
 
-    // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
+
+  // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
   
   // ===== Parcelamento (UI + sincronização para Observações) ===============
   function syncParcelamentoToObs(){
