@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.38: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.55: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -925,61 +925,119 @@
     var payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [""];
     doc.text(payLines, margin, y+14);
 
-    return doc.output("blob");
+    return doc.output("arraybuffer");
   }
 
+  
+  // ===== Cache do PDF (para manter "user gesture" no Android) =====
+  var _pdfCache = { key: "", ab: null, ts: 0, busy: false, timer: null };
+
+  function _pdfKey(){
+    try{
+      const cliente  = document.getElementById("cliente")?.value || "";
+      const telefone = document.getElementById("telefone")?.value || "";
+      const endereco = document.getElementById("endereco")?.value || "";
+      const garantia = document.getElementById("garantia")?.value || "";
+      const detalhes = document.getElementById("detalhes")?.value || "";
+      const itens = (window.state && Array.isArray(window.state.items)) ? window.state.items : [];
+      return JSON.stringify({cliente,telefone,endereco,garantia,detalhes,itens});
+    }catch(e){
+      return String(Date.now());
+    }
+  }
+
+  async function _prepararPdfCacheAgora(){
+    if(_pdfCache.busy) return;
+    _pdfCache.busy = true;
+    try{
+      const key = _pdfKey();
+      const ab = await gerarPdfBlobCompartilhar(); // agora retorna ArrayBuffer
+      if(ab && ab.byteLength){
+        _pdfCache.key = key;
+        _pdfCache.ab = ab;
+        _pdfCache.ts = Date.now();
+      }
+    }catch(e){
+      // silêncio: cache é só otimização
+      console.log("PDF cache falhou:", e);
+    }finally{
+      _pdfCache.busy = false;
+    }
+  }
+
+  function _agendarPdfCache(){
+    try{
+      if(_pdfCache.timer) clearTimeout(_pdfCache.timer);
+      _pdfCache.timer = setTimeout(_prepararPdfCacheAgora, 500);
+    }catch(e){}
+  }
+  // ===============================================================
+
   async function compartilharPdf(){
+    // Atualiza observações/parcelamento antes de gerar
     syncParcelamentoToObs();
 
-    // Gera o PDF em memória (Blob)
-    var blob = await gerarPdfBlobCompartilhar();
+    // Importante: gerar o PDF ANTES em cache, para o share acontecer "no clique" (Android)
+    const key = _pdfKey();
+    let ab = (_pdfCache.key === key && _pdfCache.ab) ? _pdfCache.ab : null;
 
-    // Alguns Androids/WhatsApp "engolem" o arquivo se compartilhar imediatamente.
-    // Um pequeno delay + validação de tamanho reduz MUITO PDF em branco.
-    await new Promise(r => setTimeout(r, 80));
+    // Se não tiver cache ainda, gera agora (pode ser mais lento, mas tenta)
+    if(!ab){
+      ab = await gerarPdfBlobCompartilhar(); // ArrayBuffer
+    }
 
-    if(!blob || !blob.size){
+    if(!ab || !ab.byteLength){
       alert("Não consegui gerar o PDF (arquivo vazio). Tente novamente.");
       return;
     }
 
-    var file = new File([blob], "proposta.pdf", { type:"application/pdf" });
+    // Normaliza bytes -> Blob -> File (melhor compatibilidade no WhatsApp Android)
+    var blob = new Blob([ab], { type:"application/pdf" });
+    var file = new File([blob], "proposta.pdf", { type:"application/pdf", lastModified: Date.now() });
 
+    // Se suportar share de arquivo, compartilha direto
     if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({
-        title:"Proposta Comercial",
-        text:"Segue a proposta em PDF.",
-        files:[file]
-      });
-      return;
+      try{
+        await navigator.share({
+          title:"Proposta Comercial",
+          text:"Segue a proposta em PDF.",
+          files:[file]
+        });
+        // após compartilhar, agenda cache novo (para próxima ser instantânea)
+        _agendarPdfCache();
+        return;
+      }catch(e){
+        console.log("Share falhou:", e);
+      }
     }
 
-    // Fallback melhor que download: abre no visualizador para compartilhar por lá
+    // Fallback: abre no visualizador (melhor que baixar em Downloads)
     var url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
-    alert("Seu aparelho não permite compartilhar PDF diretamente. Abri o PDF: use o botão Compartilhar do visualizador e escolha WhatsApp.");
+    alert("Abri o PDF. Use o botão Compartilhar do visualizador e escolha WhatsApp.");
+    _agendarPdfCache();
   }
   // =======================================================================
+
 
 </script>
 
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.38";
+  window.APP_VERSION = "0.1.55";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.38</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.55</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1015,141 +1073,7 @@
     <div class="card">
       <div id="servicesList" class="grid" style="gap:12px"></div>
 
-      <button class="add" id="btnAdd" type="button">
-        <span class="plus">+</span> ADICIONAR ITEM
-      </button>
-
-      <div style="margin-top:12px">
-        <label>Observações</label>
-        <textarea id="obs" placeholder="Observações (EX: instalação padrão, 3M de cobre, vácuo no sistema...)"></textarea>
-
-<div class="grid cols-2" style="margin-top:10px">
-  <div>
-    <label>Parcelamento no cartão?</label>
-    <select id="parcelamento">
-      <option value="">Não</option>
-      <option value="sim">Sim</option>
-    </select>
-  </div>
-  <div id="parcelasBox" style="display:none">
-    <label>Até quantas vezes?</label>
-    <select id="parcelas">
-      <option>2</option><option>3</option><option>4</option><option>5</option>
-      <option>6</option><option>7</option><option>8</option><option>9</option>
-      <option selected>10</option><option>12</option>
-    </select>
-  </div>
-</div>
-
-      </div>
-
-      <div class="totals">
-        <div class="grand">
-          <span>TOTAL GERAL</span>
-          <span class="value" id="totalLabel">R$ 0,00</span>
-        </div>
-      </div>
-      <div style="margin-top:12px">
-        <label>Desconto (R$)</label>
-        <div class="money">
-          <span>R$</span>
-          <input id="desconto" inputmode="decimal" placeholder="0,00" />
-        </div>
-      </div>
-
-
-      <div style="margin-top:12px">
-        <label>Forma de pagamento</label>
-        <select id="pagamento">
-          <option value="">Selecione...</option>
-          <option>Dinheiro/Pix</option>
-          <option>Cartão</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <!-- PDF -->
-  <section class="pdf" id="pdf">
-<div class="top">
-  <div class="logoRow">
-    <img id="pdfLogo" src="logo.png" alt="logo" onerror="this.style.display='none'"/>
-  </div>
-
-  <div class="headRow">
-    <div class="instaladorBox">
-  <div class="instRow">
-    <div class="instLine">
-      <span class="k">Nome:</span>
-      <span class="v">Robson Andre Extecoetter</span>
-    </div>
-
-    <div class="instLine">
-      <span class="k">Whats:</span>
-      <span class="v whatsappLine">
-        <svg viewBox="0 0 24 24" width="14" height="14" style="margin-right:6px; vertical-align:-2px;">
-          <path fill="#16a34a" d="M20.5 11.9c0-4.7-3.9-8.6-8.6-8.6S3.3 7.2 3.3 11.9c0 1.5.4 2.9 1.1 4.1L3 21l5.1-1.3c1.2.7 2.6 1.1 3.9 1.1 4.7 0 8.5-3.9 8.5-8.6Z"/>
-        </svg>
-        <span id="pdfWhatsFix">(14) 99707-3447</span>
-      </span>
-    </div>
-  </div>
-
-  <div class="instLine bankLine"><span class="k">Chave Pix:</span> <span class="v">14 99707 3447 / Robson A Extecoetter</span></div>
-</div>
-
-        <div class="datebox">
-      <small>Data de emissão</small>
-      <div id="pdfData"></div>
-      <div class="validadeLine"><span class="k">Validade da proposta:</span> <span id="pdfValidade"></span></div>
-    </div>
-  </div>
-</div>
-    <div class="clientbox">
-      <div id="pdfClienteLine" style="font-weight:1000; color:#111827"></div>
-      <div id="pdfEndereco" style="margin-top:6px; color:#334155; font-weight:800"></div>
-    </div>
-
-    
-    <div class="pdfTitleCenter">Proposta Comercial</div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>DESCRIÇÃO DO SERVIÇO</th>
-          <th>QTD</th>
-          <th>SUBTOTAL</th>
-        </tr>
-      </thead>
-      <tbody id="pdfTbody"></tbody>
-    </table>
-
-    <div class="sum">
-      <div class="panel">
-        <div class="line"><span>Desconto:</span><span id="pdfDesconto">R$ 0,00</span></div>
-        <div class="grand"><span>TOTAL GERAL</span><b id="pdfTotal">R$ 0,00</b></div>
-      </div>
-    </div>
-
-    <div class="bottom">
-      <div class="box obs">
-        <small>Observações</small>
-        <div class="value" id="pdfObs"></div>
-      </div>
-      <div class="box pay">
-        <small>Forma de pagamento</small>
-        <div class="value" id="pdfPagamento"></div>
-      </div>
-    </div>
-
-    <div class="footer"></div>
-  </section>
-
-  
-<div class="actions">
-  <div class="inner">
-    <button class="btn" id="btnLimpar" type="button" onclick="onLimparClick(event)">Limpar</button>
-    <button class="btn primary" id="btnCompartilharPDF" type="button" onclick="compartilharPDF(event)">Enviar orçamento</button>
+      <button class="btn" id="btnShare" type="button" onclick="onShareClick(event)">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1431,66 +1355,6 @@ const obs = document.getElementById('obs').value.trim();
     document.getElementById('pdfTotal').textContent = brl.format(totalFinal);
   }
 
-  // Gera e compartilha o PDF no padrão "Refrigerista":
-  // 1) Preenche o HTML do PDF (fillPDF)
-  // 2) Gera em memória (Blob) via html2pdf
-  // 3) Compartilha como arquivo (Web Share API)
-  // 4) Se não suportar, abre o PDF no viewer (bloburl) para compartilhar de lá
-  async function compartilharPDF(evt){
-    try{
-      if(evt) evt.preventDefault();
-
-      // garante que o HTML do PDF está com os dados atuais
-      if(typeof fillPDF === "function") fillPDF();
-
-      const pdfEl = document.getElementById("pdf");
-      if(!pdfEl) throw new Error("Elemento #pdf não encontrado");
-
-      // garante renderização (alguns Androids geram branco se o elemento estiver fora de fluxo)
-      pdfEl.classList.remove("hidden");
-
-      const cliente = (document.getElementById("clienteNome")?.value || "cliente").trim();
-      const safeCliente = cliente.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-]/g, "");
-      const filename = `Orcamento_${safeCliente || "cliente"}.pdf`;
-
-            await new Promise(r=>setTimeout(r, 80));
-
-      const opt = {
-        margin: 8,
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-      };
-
-      // tenta share de arquivo (melhor UX)
-      if(navigator.share && navigator.canShare){
-        const pdfBlob = await html2pdf().set(opt).from(pdfEl).output("blob");
-        const file = new File([pdfBlob], filename, { type: "application/pdf" });
-
-        if(navigator.canShare({ files: [file] })){
-          await navigator.share({
-            files: [file],
-            title: "Orçamento",
-            text: `Olá! Segue o orçamento em PDF para ${cliente || "o cliente"}.`
-          });
-          return;
-        }
-      }
-
-      // fallback melhor que download: abre o PDF no visualizador (de lá dá pra compartilhar pro WhatsApp)
-      const blobUrl = await html2pdf().set(opt).from(pdfEl).output("bloburl");
-      window.open(blobUrl, "_blank", "noopener,noreferrer");
-      setTimeout(() => { try{ URL.revokeObjectURL(blobUrl); }catch(e){} }, 60000);
-
-    } catch(err){
-      console.log("[ERRO] compartilharPDF:", err);
-      alert("Não foi possível compartilhar o PDF automaticamente. Vou abrir a visualização para você compartilhar pelo botão do PDF.");
-      try{ window.print(); }catch(e){}
-    }
-  }
-
-
     // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
   
   // ===== Parcelamento (UI + sincronização para Observações) ===============
@@ -1580,170 +1444,277 @@ const obs = document.getElementById('obs').value.trim();
   }
   // =======================================================================
 document.addEventListener('DOMContentLoaded', function(){
-  try{
-    const btnAdd = document.getElementById('btnAdd');
-    if(btnAdd) btnAdd.addEventListener('click', addItem);
-  }catch(e){}
+          document.getElementById('btnAdd').addEventListener('click', addItem);
+    setupParcelamentoUI();
+var btnShare = document.getElementById('btnShare');
+    if(btnShare){ btnShare.addEventListener('click', compartilharPdf); }
+document.getElementById('btnLimpar').addEventListener('click', () => {
+      state.items = [];
+      renderItems();
+      document.getElementById('cliente').value = "";
+      document.getElementById('endereco').value = "";
+      document.getElementById('telefone').value = "";
+      document.getElementById('obs').value = "";
+      document.getElementById('pagamento').value = "";
+      document.getElementById('data').value = todayISO();
+    const vEl = document.getElementById('validade'); if(vEl && !vEl.value) vEl.value = "7 dias";
+      recalc();
+    });
+     const descontoEl = document.getElementById('desconto');
+    if(descontoEl){
+      descontoEl.addEventListener('input', recalc);
+      descontoEl.addEventListener('blur', () => {
+        const v = parseBRL(descontoEl.value);
+        // formata no padrão pt-BR (sem R$ porque já tem o prefixo)
+        descontoEl.value = (v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        recalc();
+      });
+    }
+     // init
+    document.getElementById('data').value = todayISO();
+    renderItems(); // começa zerado
+    recalc();
+        // PWA: Service Worker (BETA 0.1.55)
+    if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      
+    // ===== Enviar no WhatsApp (PDF como arquivo) ==========================
+    // Importante: não dá para anexar PDF via link wa.me automaticamente.
+    // O jeito correto é abrir o "compartilhar" do sistema com o PDF anexado e escolher WhatsApp.
+    let __jspdfLoading = null;
 
-  // Se existirem funções do parcelamento, chama com segurança
-  try{ if(typeof setupParcelamentoUI === 'function') setupParcelamentoUI(); }catch(e){}
-});
+    function loadJsPdf(){
+      if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+      if(__jspdfLoading) return __jspdfLoading;
 
-</script>
-  <!-- Área de impressão (usada para gerar o PDF para compartilhar) -->
-  <div id="printable-area" style="position: fixed; left:-99999px; top:0; width:794px; background:#fff; color:#0f172a; padding:32px; font-family: Inter, Arial, sans-serif;">
-    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
-      <div>
-        <div id="printPrestador" style="font-size:22px; font-weight:900; color:#0b5ed7;">Prestador</div>
-        <div id="printDetalhes" style="margin-top:6px; color:#334155; font-weight:600;"></div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-weight:800; color:#0f172a;">Orçamento Profissional</div>
-        <div style="margin-top:6px; color:#475569;">Data: <span id="printData"></span></div>
-      </div>
-    </div>
-
-    <div style="margin-top:18px; border-top:2px solid #e2e8f0; padding-top:14px;">
-      <div style="font-weight:800; color:#0b5ed7; margin-bottom:8px;">Cliente</div>
-      <div><span style="font-weight:800;">Nome:</span> <span id="printCliente"></span></div>
-      <div><span style="font-weight:800;">Tel:</span> <span id="printTelefone"></span></div>
-      <div><span style="font-weight:800;">End:</span> <span id="printEndereco"></span></div>
-    </div>
-
-    <div style="margin-top:18px;">
-      <div style="font-weight:800; color:#0b5ed7; margin-bottom:8px;">Serviços</div>
-      <table style="width:100%; border-collapse:collapse;">
-        <thead>
-          <tr style="border-bottom:2px solid #0f172a;">
-            <th style="text-align:left; padding:10px 0;">Descrição</th>
-            <th style="text-align:center; padding:10px 0; width:90px;">Qtd</th>
-            <th style="text-align:right; padding:10px 0; width:140px;">Subtotal</th>
-          </tr>
-        </thead>
-        <tbody id="printServicesList"></tbody>
-      </table>
-    </div>
-
-    <div style="margin-top:14px; border-top:2px solid #e2e8f0; padding-top:12px; display:flex; justify-content:flex-end;">
-      <div style="width:320px;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-          <span style="font-weight:800;">Peças/Materiais:</span>
-          <span id="printMateriais" style="font-weight:900;"></span>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:18px;">
-          <span style="font-weight:900; color:#0b5ed7;">Total Geral:</span>
-          <span id="printTotal" style="font-weight:900; color:#0b5ed7;"></span>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:14px; color:#334155; font-weight:600;">
-      <div><span style="font-weight:900;">Garantia:</span> <span id="printGarantia"></span> dias</div>
-      <div style="margin-top:8px; font-size:12px; color:#64748b;">Orçamento gerado via app.</div>
-    </div>
-  </div>
-
-<script>
-  // =================== PDF (modelo Refrigerista) ===================
-  function _safeText(v){ return (v==null) ? "" : String(v); }
-  function _brl(n){
-    try{ return (Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
-    catch(e){ return 'R$ ' + (Number(n)||0).toFixed(2); }
-  }
-
-  function montarPrintableArea(){
-    const cliente  = document.getElementById('cliente')?.value || '';
-    const telefone = document.getElementById('telefone')?.value || '';
-    const endereco = document.getElementById('endereco')?.value || '';
-
-    const prestador = document.getElementById('prestador')?.value
-                   || document.getElementById('nomePrestador')?.value
-                   || 'Prestador';
-
-    const detalhes  = document.getElementById('detalhes')?.value || '';
-    const garantia  = document.getElementById('garantia')?.value || '90';
-    const data      = document.getElementById('data')?.value || new Date().toLocaleDateString('pt-BR');
-
-    document.getElementById('printPrestador').innerText = _safeText(prestador);
-    document.getElementById('printCliente').innerText   = _safeText(cliente);
-    document.getElementById('printTelefone').innerText  = _safeText(telefone);
-    document.getElementById('printEndereco').innerText  = _safeText(endereco);
-    document.getElementById('printDetalhes').innerText  = _safeText(detalhes);
-    document.getElementById('printData').innerText      = _safeText(data);
-    document.getElementById('printGarantia').innerText  = _safeText(garantia);
-
-    const tbody = document.getElementById('printServicesList');
-    tbody.innerHTML = '';
-
-    const items = (window.state && Array.isArray(window.state.items)) ? window.state.items : [];
-    let total = 0;
-
-    for(const it of items){
-      const desc = _safeText(it?.desc || 'Serviço');
-      const qtd  = Number(it?.qty || 1);
-      const preco= Number(it?.price || 0);
-      const sub  = qtd * preco;
-      total += sub;
-
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid #f1f5f9';
-      tr.innerHTML = `<td style="padding:10px 0;">${desc}</td>
-                      <td style="padding:10px 0; text-align:center;">${qtd}</td>
-                      <td style="padding:10px 0; text-align:right; font-weight:800;">${_brl(sub)}</td>`;
-      tbody.appendChild(tr);
+      __jspdfLoading = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "libs/jspdf.umd.min.js";
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("Não consegui carregar libs/jspdf.umd.min.js"));
+        document.head.appendChild(s);
+      });
+      return __jspdfLoading;
     }
 
-    const materiais = Number(document.getElementById('materiais')?.value || 0);
-    document.getElementById('printMateriais').innerText = _brl(materiais);
-    document.getElementById('printTotal').innerText     = _brl(total + materiais);
-  }
+    function imgToJpegDataUrl(img){
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img, 0, 0);
+      return c.toDataURL("image/jpeg", 0.92);
+    }
 
-  async function compartilharPDF(){
-    if(typeof recalc === 'function'){ try{ recalc(); }catch(e){} }
-    montarPrintableArea();
+    function loadLogoAsJpegDataUrl(){
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          try{
+            resolve(imgToJpegDataUrl(img));
+          }catch(e){
+            reject(new Error("Falha ao converter logo."));
+          }
+        };
+        img.onerror = () => reject(new Error("Logo não carregou (logo.png)."));
+        img.src = "logo.png?v=" + encodeURIComponent(window.APP_VERSION || "");
+      });
+    }
 
-    const label = document.getElementById('labelPDF');
-    const loader = document.getElementById('loaderPDF');
-    if(label) label.classList.add('hidden');
-    if(loader) loader.classList.remove('hidden');
+    function pdfMoney(v){
+      return brl.format(Number(v) || 0);
+    }
 
-    const elemento = document.getElementById('printable-area');
-    const nomeCliente = (document.getElementById('cliente')?.value || 'cliente').trim().replace(/\s+/g,'_');
-
-    const opt = {
-      margin: 5,
-      filename: `Orcamento_${nomeCliente}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    try{
-      if(navigator.share && navigator.canShare){
-        const pdfBlob = await html2pdf().set(opt).from(elemento).output('blob');
-        if(!pdfBlob || !pdfBlob.size) throw new Error('PDF vazio');
-
-        const file = new File([pdfBlob], opt.filename, { type:'application/pdf' });
-
-        if(navigator.canShare({ files:[file] })){
-          await navigator.share({ title:'Orçamento', text:'Segue o orçamento em PDF.', files:[file] });
-          return;
-        }
+    async function gerarPdfBlobWhats(){
+      await loadJsPdf();
+      if(!window.jspdf || !window.jspdf.jsPDF){
+        throw new Error("jsPDF não disponível.");
       }
 
-      const url = await html2pdf().set(opt).from(elemento).output('bloburl');
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
 
-    }catch(err){
-      console.log('Erro ao gerar/compartilhar PDF:', err);
-      alert('Não consegui compartilhar o PDF. Tente novamente.');
-    }finally{
-      if(loader) loader.classList.add('hidden');
-      if(label) label.classList.remove('hidden');
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+
+      const margin = 42;
+      const contentW = pageW - margin*2;
+
+      // Logo
+      try{
+        const logoJpeg = await loadLogoAsJpegDataUrl();
+        doc.addImage(logoJpeg, "JPEG", margin, margin-12, 260, 120, undefined, "FAST");
+      }catch(e){
+        // sem logo, segue
+      }
+
+      let y = margin + 86;
+
+      // Cliente
+      const cliente = (document.getElementById("cliente") ? (document.getElementById("cliente").value || "").trim() : "");
+      const telefone = (document.getElementById("telefone") ? (document.getElementById("telefone").value || "").trim() : "");
+      const endereco = (document.getElementById("endereco") ? (document.getElementById("endereco").value || "").trim() : "");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(11, 94, 215);
+      doc.text("Cliente:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(cliente || "", margin + 62, y);
+
+      y += 18;
+      doc.setTextColor(11, 94, 215);
+      doc.text("Tel:", margin, y);
+      doc.setTextColor(17,24,39);
+      doc.text(telefone || "", margin + 30, y);
+
+      y += 18;
+      if(endereco){
+        doc.setTextColor(11, 94, 215);
+        doc.text("End:", margin, y);
+        doc.setTextColor(17,24,39);
+        doc.setFont("helvetica", "normal");
+        const endLines = doc.splitTextToSize(endereco, contentW - 40);
+        doc.text(endLines, margin + 34, y);
+        y += (endLines.length * 12);
+      }
+
+      y += 22;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(11,18,32);
+      doc.text("Proposta Comercial", pageW/2, y, { align:"center" });
+
+      y += 26;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.text("DESCRIÇÃO DO SERVIÇO", margin, y);
+      doc.text("QTD", margin + contentW - 160, y, { align:"center" });
+      doc.text("SUBTOTAL", margin + contentW, y, { align:"right" });
+
+      y += 8;
+      doc.setDrawColor(15,23,42);
+      doc.setLineWidth(1.2);
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(51,65,85);
+      doc.setLineWidth(0.6);
+      doc.setDrawColor(238,242,247);
+
+      let total = 0;
+      const items = (state && state.items) ? state.items : [];
+
+      for(let i=0;i<items.length;i++){
+        const it = items[i];
+        const desc = ((it && it.desc) ? String(it.desc) : "Serviço");
+        const qty = (it && it.qty) ? Number(it.qty) : 1;
+        const price = (it && it.price) ? Number(it.price) : 0;
+        const sub = qty * price;
+        total += sub;
+
+        if(y > pageH - margin - 180){
+          doc.addPage();
+          y = margin;
+        }
+
+        const descLines = doc.splitTextToSize(desc, contentW - 210);
+        doc.text(descLines, margin, y);
+
+        doc.setFont("helvetica","bold");
+        doc.text(String(qty), margin + contentW - 160, y, { align:"center" });
+        doc.text(pdfMoney(sub), margin + contentW, y, { align:"right" });
+        doc.setFont("helvetica","normal");
+
+        y += Math.max(18, descLines.length * 12);
+        doc.line(margin, y, pageW - margin, y);
+        y += 12;
+      }
+
+      // Totais
+      const descontoRaw = (document.getElementById("desconto") ? document.getElementById("desconto").value : "");
+      const desconto = parseBRL(descontoRaw || "");
+      const totalFinal = Math.max(0, total - desconto);
+
+      y += 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(102,112,133);
+      doc.text("Desconto:", margin + contentW - 300, y);
+      doc.text(pdfMoney(desconto), margin + contentW, y, { align:"right" });
+
+      y += 22;
+      doc.setFontSize(12);
+      doc.setTextColor(11,18,32);
+      doc.text("TOTAL GERAL", margin + contentW - 300, y);
+      doc.setFontSize(16);
+      doc.text(pdfMoney(totalFinal), margin + contentW, y, { align:"right" });
+
+      // Observações / Pagamento
+      const obs = (document.getElementById("obs") ? (document.getElementById("obs").value || "").trim() : "");
+      const pagamento = (document.getElementById("pagamento") ? (document.getElementById("pagamento").value || "").trim() : "");
+
+      y += 34;
+      doc.setFontSize(10);
+      doc.setTextColor(11, 94, 215);
+      doc.setFont("helvetica","bold");
+      doc.text("OBSERVAÇÕES", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const obsLines = obs ? doc.splitTextToSize(obs, contentW) : [""];
+      doc.text(obsLines, margin, y + 14);
+
+      y += 44 + obsLines.length * 10;
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(11, 94, 215);
+      doc.text("FORMA DE PAGAMENTO", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(51,65,85);
+      const payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [""];
+      doc.text(payLines, margin, y + 14);
+
+      return doc.output("arraybuffer");
     }
-  }
-  // =================================================================
-</script>
 
+    async function enviarWhatsApp(){
+      const fileName = "proposta.pdf";
+      try{
+        const blob = await gerarPdfBlobWhats();
+        const file = new File([blob], fileName, { type: "application/pdf" });
+
+        const nome = (typeof INSTALLER !== "undefined" && INSTALLER && INSTALLER.name) ? INSTALLER.name : "";
+        const msg = "Olá, segue a proposta do seu serviço de climatização.\n\nQualquer dúvida estou à disposição.\n\nAtt,\n" + nome;
+
+        // Preferência: abrir o COMPARTILHAR do sistema com o PDF anexado (escolher WhatsApp)
+        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({ title: "Proposta Comercial", text: msg, files: [file] });
+          return;
+        }
+
+        // Fallback: abre o PDF e abre o WhatsApp com a mensagem (sem anexo)
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+        setTimeout(()=>URL.revokeObjectURL(url), 8000);
+        alert("Este aparelho não permite anexar PDF direto aqui. Abri o PDF e o WhatsApp com a mensagem.");
+      }catch(err){
+        alert("Não foi possível enviar no WhatsApp: " + (err && err.message ? err.message : err));
+      }
+    }
+    // ======================================================================
+
+
+    navigator.serviceWorker.register('service-worker.js?v=0.1.55').catch(()=>{});
+    });
+    }
+    
+  });
+
+</script>
 </body>
 </html>
