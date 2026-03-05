@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.38
+     Versão: BETA 0.1.39
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.38: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.39: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -946,12 +946,50 @@
   }
   // =======================================================================
 
+
+  // ===== Preflight (varredura) ===========================================
+  function preflightCheck(){
+    try{
+      var problems = [];
+      // elementos críticos
+      var ids = ["btnAdd","btnLimpar","btnPdf","btnShare","servicesList","cliente","telefone","endereco","obs","pagamento"];
+      for(var i=0;i<ids.length;i++){
+        if(!document.getElementById(ids[i])) problems.push("Elemento faltando: #" + ids[i]);
+      }
+      // funções críticas
+      var fns = ["renderItems","recalc","fillPDF","syncParcelamentoToObs","compartilharPdf","onLimparClick","onGerarPdfClick","onShareClick"];
+      for(var j=0;j<fns.length;j++){
+        if(typeof window[fns[j]] !== "function") problems.push("Função faltando: " + fns[j] + "()");
+      }
+
+      if(problems.length){
+        showFatal("[ERRO] Preflight:\n" + problems.join(" | "));
+        console.error("Preflight problems:", problems);
+      }
+    }catch(e){
+      showFatal("[ERRO] Preflight: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  // Proteção: se algum handler explodir, não derruba o app inteiro
+  function safeCall(fnName, args){
+    try{
+      var fn = window[fnName];
+      if(typeof fn !== "function") throw new Error("Função inexistente: " + fnName);
+      return fn.apply(null, args || []);
+    }catch(e){
+      showFatal("[ERRO] " + fnName + ": " + (e && e.message ? e.message : e));
+      throw e;
+    }
+  }
+  // =======================================================================
+
 </script>
 
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.38";
+  window.APP_VERSION = "0.1.39";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -962,7 +1000,7 @@
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.38</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.39</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1506,6 +1544,7 @@ const obs = document.getElementById('obs').value.trim();
 document.addEventListener('DOMContentLoaded', function(){
           document.getElementById('btnAdd').addEventListener('click', addItem);
     setupParcelamentoUI();
+      preflightCheck();
      document.getElementById('btnPdf').addEventListener('click', () => {
       syncParcelamentoToObs();
       fillPDF();
@@ -1539,7 +1578,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
     document.getElementById('data').value = todayISO();
     renderItems(); // começa zerado
     recalc();
-        // PWA: Service Worker (BETA 0.1.38)
+        // PWA: Service Worker (BETA 0.1.39)
     if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       
@@ -1774,7 +1813,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
     // ======================================================================
 
 
-    navigator.serviceWorker.register('service-worker.js?v=0.1.38').catch(()=>{});
+    navigator.serviceWorker.register('service-worker.js?v=0.1.39').catch(()=>{});
     });
     }
     
