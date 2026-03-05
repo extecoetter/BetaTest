@@ -1,21 +1,24 @@
 {
-  "name": "Orçamento Climatização",
+  "name": "Proposta Comercial - Climatização",
   "short_name": "Orçamento",
+  "description": "Gerador de proposta/orçamento de climatização com PDF e compartilhamento.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0b5ed7",
-  "orientation": "portrait",
+  "theme_color": "#1f6feb",
   "icons": [
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
