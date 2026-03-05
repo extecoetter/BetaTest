@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.38
+     Versão: BETA 0.1.50
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -929,21 +929,56 @@
   }
 
   async function compartilharPdf(){
-    syncParcelamentoToObs();
-    var blob = await gerarPdfBlobCompartilhar();
-    var file = new File([blob], "proposta.pdf", { type:"application/pdf" });
+    // Modelo "Refrigerista": gerar PDF em memória e compartilhar como arquivo (sem cair em Downloads)
+    try{
+      syncParcelamentoToObs();
+      if(typeof fillPDF === 'function') fillPDF();
 
-    if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({ title:"Proposta Comercial", files:[file] });
-      return;
+      const elemento = document.getElementById('pdf');
+      if(!elemento) throw new Error("Área do PDF não encontrada.");
+
+      const clienteEl = document.getElementById('cliente');
+      const cliente = clienteEl ? (clienteEl.value || 'cliente').trim() : 'cliente';
+      const safeCliente = cliente.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+      const opt = {
+        margin: 5,
+        filename: `Orcamento_${safeCliente || 'cliente'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      if(typeof window.html2pdf !== 'function'){
+        throw new Error("html2pdf não carregou.");
+      }
+
+      // 1) Compartilhamento nativo com arquivo (melhor experiência)
+      if(navigator.share && navigator.canShare){
+        const pdfBlob = await html2pdf().set(opt).from(elemento).output('blob');
+        const file = new File([pdfBlob], opt.filename, { type:'application/pdf' });
+
+        if(navigator.canShare({ files: [file] })){
+          await navigator.share({
+            title: "Orçamento",
+            text: `Olá! Segue o orçamento em PDF para ${cliente}.`,
+            files: [file]
+          });
+          return;
+        }
+      }
+
+      // 2) Fallback melhor que download: abre no visualizador pra usar o botão Compartilhar
+      const blobUrl = await html2pdf().set(opt).from(elemento).output('bloburl');
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      setTimeout(()=>{ try{ URL.revokeObjectURL(blobUrl); }catch(e){} }, 60_000);
+
+      alert("Seu aparelho não permite compartilhar o PDF automaticamente. Abri o PDF: toque em Compartilhar no visualizador e escolha WhatsApp.");
+    }catch(err){
+      console.log("Erro ao compartilhar PDF:", err);
+      try{ window.print(); }catch(e){}
     }
-
-    // Fallback: abre o PDF e orienta
-    var url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
-    alert("Seu aparelho não permite compartilhar PDF diretamente. Abri o PDF: use o botão Compartilhar do visualizador e escolha WhatsApp.");
   }
+
   // =======================================================================
 
 </script>
@@ -1132,8 +1167,7 @@
 <div class="actions">
   <div class="inner">
     <button class="btn" id="btnLimpar" type="button" onclick="onLimparClick(event)">Limpar</button>
-    <button class="btn primary" id="btnPdf" type="button" onclick="onGerarPdfClick(event)">Gerar PDF</button>
-      <button class="btn" id="btnShare" type="button" onclick="onShareClick(event)">Compartilhar PDF</button>
+<button class="btn" id="btnShare" type="button" onclick="onShareClick(event)">Enviar Orçamento</button>
   </div>
 </div>
 
@@ -1781,5 +1815,7 @@ document.getElementById('btnLimpar').addEventListener('click', () => {
   });
 
 </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </body>
 </html>
