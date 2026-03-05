@@ -930,18 +930,34 @@
 
   async function compartilharPdf(){
     syncParcelamentoToObs();
-    var blob = await gerarPdfBlobCompartilhar();
-    var file = new File([blob], "proposta.pdf", { type:"application/pdf" });
 
-    if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({ title:"Proposta Comercial", files:[file] });
+    // Gera o PDF em memória (Blob)
+    var blob = await gerarPdfBlobCompartilhar();
+
+    // Alguns Androids/WhatsApp "engolem" o arquivo se compartilhar imediatamente.
+    // Um pequeno delay + validação de tamanho reduz MUITO PDF em branco.
+    await new Promise(r => setTimeout(r, 80));
+
+    if(!blob || !blob.size){
+      alert("Não consegui gerar o PDF (arquivo vazio). Tente novamente.");
       return;
     }
 
-    // Fallback: abre o PDF e orienta
+    var file = new File([blob], "proposta.pdf", { type:"application/pdf" });
+
+    if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({
+        title:"Proposta Comercial",
+        text:"Segue a proposta em PDF.",
+        files:[file]
+      });
+      return;
+    }
+
+    // Fallback melhor que download: abre no visualizador para compartilhar por lá
     var url = URL.createObjectURL(blob);
     window.open(url, "_blank");
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
     alert("Seu aparelho não permite compartilhar PDF diretamente. Abri o PDF: use o botão Compartilhar do visualizador e escolha WhatsApp.");
   }
   // =======================================================================
