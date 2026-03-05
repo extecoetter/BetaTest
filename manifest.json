@@ -1,21 +1,25 @@
 {
   "name": "Orçamento Climatização",
   "short_name": "Orçamento",
-  "start_url": "./",
+  "description": "Gerador de orçamento e envio em PDF via WhatsApp.",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1f6feb",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "pt-BR",
   "icons": [
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
