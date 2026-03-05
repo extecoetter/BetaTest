@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.556
+     Versão: BETA 0.1.55
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -1444,22 +1444,12 @@ const obs = document.getElementById('obs').value.trim();
   }
   // =======================================================================
 document.addEventListener('DOMContentLoaded', function(){
-          document.getElementById('btnAdd').addEventListener('click', addItem);
-    setupParcelamentoUI();
-var btnShare = document.getElementById('btnShare');
-    if(btnShare){ btnShare.addEventListener('click', compartilharPdf); }
-document.getElementById('btnLimpar').addEventListener('click', () => {
-      state.items = [];
-      renderItems();
-      document.getElementById('cliente').value = "";
-      document.getElementById('endereco').value = "";
-      document.getElementById('telefone').value = "";
-      document.getElementById('obs').value = "";
-      document.getElementById('pagamento').value = "";
-      document.getElementById('data').value = todayISO();
-    const vEl = document.getElementById('validade'); if(vEl && !vEl.value) vEl.value = "7 dias";
-      recalc();
-    });
+    // (BETA) Evitar quebra por IDs antigos que não existem mais.
+    var btnShare = document.getElementById('btnShare');
+    if(btnShare && typeof compartilharPdf === 'function'){
+      btnShare.addEventListener('click', compartilharPdf);
+    }
+  });
      const descontoEl = document.getElementById('desconto');
     if(descontoEl){
       descontoEl.addEventListener('input', recalc);
