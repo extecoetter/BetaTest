@@ -1196,7 +1196,7 @@
 // iPhone/Safari: crypto.randomUUID pode não existir
 function uid(){
   try{
-    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
+    if(window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   }  // === BETA PATCH END: iPhone UID ====================================
 catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -1424,60 +1424,50 @@ const obs = document.getElementById('obs').value.trim();
     try{
       if(evt) evt.preventDefault();
 
-      // Preenche o HTML do PDF com os dados atuais
+      // garante que o HTML do PDF está com os dados atuais
       if(typeof fillPDF === "function") fillPDF();
 
       const pdfEl = document.getElementById("pdf");
       if(!pdfEl) throw new Error("Elemento #pdf não encontrado");
-      if(typeof html2pdf !== "function") throw new Error("html2pdf não carregou");
-
-      // ANDROID: html2canvas/html2pdf pode gerar PDF em branco se o elemento estiver display:none.
-      // Solução "cirúrgica": clona o PDF para um container fora da tela, visível, só para a geração.
-      const tmp = document.createElement("div");
-      tmp.style.cssText = "position:absolute;left:0;top:-10000px;width:794px;background:#fff;z-index:2147483647;opacity:1;pointer-events:none;";
-      const clone = pdfEl.cloneNode(true);
-      clone.style.display = "block";
-      clone.style.visibility = "visible";
-      clone.style.opacity = "1";
-            clone.style.width = "794px";
-      clone.style.height = "auto";
-      clone.style.overflow = "visible";
-      clone.style.position = "relative";
-// evita IDs duplicados em caso de CSS/JS
-      clone.id = "pdf_share_clone";
-      tmp.appendChild(clone);
-      document.body.appendChild(tmp);
-
-      // Força o html2canvas a capturar a altura completa (Android às vezes corta)
-      const _w = clone.scrollWidth || 794;
-      const _h = clone.scrollHeight || clone.offsetHeight || 1123;
-
-      // Espera imagens carregarem (principalmente o logo) — sem setTimeout que quebra "user gesture"
-      const imgs = Array.from(clone.querySelectorAll("img"));
-      if(imgs.length){
-        await Promise.race([
-          Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; }))),
-          new Promise(res => setTimeout(res, 900))
-        ]);
-      }
 
       const cliente = (document.getElementById("cliente")?.value || "cliente").trim();
       const safeCliente = cliente.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-]/g, "");
       const filename = `Orcamento_${safeCliente || "cliente"}.pdf`;
 
+      // CLONE VISÍVEL FORA DA TELA (Android: evita branco e evita corte)
+      const tmp = document.createElement("div");
+      tmp.setAttribute("data-pdf-tmp","1");
+      tmp.style.cssText = "position:absolute;left:0;top:-10000px;width:794px;background:#fff;z-index:1;opacity:1;pointer-events:none;";
+      const clone = pdfEl.cloneNode(true);
+      clone.style.display = "block";          // remove display:none do .pdf
+      clone.style.visibility = "visible";
+      clone.style.width = "794px";
+      clone.style.height = "auto";
+      tmp.appendChild(clone);
+      document.body.appendChild(tmp);
+
+      // espera imagens do clone (logo) carregarem
+      const imgs = Array.from(clone.querySelectorAll("img"));
+      await Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })));
+
       const opt = {
         margin: 8,
         filename,
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, windowWidth: (typeof _w!=="undefined"?_w:undefined), windowHeight: (typeof _h!=="undefined"?_h:undefined), scrollX: 0, scrollY: 0 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          // força capturar toda a altura do clone (corrige "pegou só a parte de cima")
+          windowWidth: clone.scrollWidth,
+          windowHeight: clone.scrollHeight
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
       };
 
       // tenta share de arquivo (melhor UX)
       if(navigator.share && navigator.canShare){
         const pdfBlob = await html2pdf().set(opt).from(clone).output("blob");
-        if(!pdfBlob || !pdfBlob.size) throw new Error("PDF vazio (blob size 0)");
-
+        if(!pdfBlob || !pdfBlob.size) throw new Error("PDF vazio");
         const file = new File([pdfBlob], filename, { type: "application/pdf" });
 
         if(navigator.canShare({ files: [file] })){
@@ -1501,8 +1491,7 @@ const obs = document.getElementById('obs').value.trim();
       try{ window.print(); }catch(e){}
     } finally {
       try{
-        const tmpEl = document.getElementById("pdf_share_clone")?.parentElement;
-        if(tmpEl && tmpEl.parentElement) tmpEl.parentElement.removeChild(tmpEl);
+        document.querySelectorAll('[data-pdf-tmp="1"]').forEach(n=>n.remove());
       }catch(e){}
     }
   }
