@@ -1441,7 +1441,11 @@ const obs = document.getElementById('obs').value.trim();
       const clone = pdfEl.cloneNode(true);
       clone.style.display = "block";          // remove display:none do .pdf
       clone.style.visibility = "visible";
-      clone.style.width = "794px";
+      clone.style.boxSizing = "border-box";
+      clone.style.width = "770px";     // um pouco menor pra não cortar
+      clone.style.maxWidth = "770px";
+      clone.style.padding = "0";
+      clone.style.margin = "0";
       clone.style.height = "auto";
       tmp.appendChild(clone);
       document.body.appendChild(tmp);
@@ -1455,13 +1459,14 @@ const obs = document.getElementById('obs').value.trim();
         filename,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
-          scale: 2,
+          scale: 1.5,
           useCORS: true,
           // força capturar toda a altura do clone (corrige "pegou só a parte de cima")
           windowWidth: clone.scrollWidth,
           windowHeight: clone.scrollHeight
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+        pagebreak: { mode: ["css", "legacy"] }
       };
 
       // tenta share de arquivo (melhor UX)
