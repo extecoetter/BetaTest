@@ -1133,7 +1133,7 @@
 <div class="actions">
   <div class="inner">
     <button class="btn" id="btnLimpar" type="button" onclick="onLimparClick(event)">Limpar</button>
-    <button class="btn primary" id="btnCompartilharPDF" type="button" onclick="compartilharPDF(event)">Enviar orçamento</button>
+    <button class="btn" id="btnShare" type="button">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1194,13 +1194,14 @@
 
 
 // iPhone/Safari: crypto.randomUUID pode não existir
+// === BETA PATCH: iPhone UID ====================================
 function uid(){
   try{
-    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
-  }  // === BETA PATCH END: iPhone UID ====================================
-catch(e){}
+    if(window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  }catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
+// === BETA PATCH END ============================================
 
 
   function addItem(){
