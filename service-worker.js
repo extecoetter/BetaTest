@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-39";
+const CACHE_NAME = "orcamento-clima-beta-0-1-38-manifestfix";
 
 const CORE = [
   "./",
@@ -7,7 +7,9 @@ const CORE = [
   "./manifest.json",
   "./logo.png",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./libs/html2canvas.min.js",
+  "./libs/jspdf.umd.min.js"
 ];
 
 self.addEventListener("install", (event) => {
