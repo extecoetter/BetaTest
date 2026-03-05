@@ -1118,7 +1118,7 @@
     <div class="card">
       <div id="servicesList" class="grid" style="gap:12px"></div>
 
-      <button class="btn" id="btnShare" type="button" onclick="compartilharPdf()">Compartilhar PDF</button>
+     <button class="btn" id="btnShare" type="button">Compartilhar PDF</button>
   </div>
 </div>
 
@@ -1178,14 +1178,14 @@
   // === BETA PATCH START: iPhone UID ==================================
 
 
-// iPhone/Safari: crypto.randomUUID pode não existir
+// === BETA PATCH: iPhone UID ====================================
 function uid(){
   try{
-    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
-  }  // === BETA PATCH END: iPhone UID ====================================
-catch(e){}
+    if(window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  }catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
+// === BETA PATCH END ============================================
 
 
   function addItem(){
@@ -1490,10 +1490,20 @@ const obs = document.getElementById('obs').value.trim();
   // =======================================================================
 document.addEventListener('DOMContentLoaded', function(){
     // (BETA) Evitar quebra por IDs antigos que não existem mais.
-    var btnShare = document.getElementById('btnShare');
-    if(btnShare && typeof compartilharPdf === 'function'){
-      btnShare.addEventListener('click', compartilharPdf);
+   var btnShare = document.getElementById('btnShare');
+if(btnShare){
+  btnShare.addEventListener('click', async function(e){
+    e.preventDefault();
+    btnShare.disabled = true;
+    btnShare.textContent = "Gerando PDF...";
+    try{
+      await compartilharPdf();
+    }finally{
+      btnShare.disabled = false;
+      btnShare.textContent = "Compartilhar PDF";
     }
+  });
+}
   });
      const descontoEl = document.getElementById('desconto');
     if(descontoEl){
