@@ -3,7 +3,7 @@
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 0.1.50
+     Versão: BETA 1.0.6
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -674,7 +674,7 @@
 }
 
   
-/* --- BETA 0.1.38: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 1.0.6: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -951,7 +951,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "0.1.6";
+  window.APP_VERSION = "1.0.6";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -963,7 +963,7 @@
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.38</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 1.0.6</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1434,18 +1434,23 @@ const obs = document.getElementById('obs').value.trim();
       // ANDROID: html2canvas/html2pdf pode gerar PDF em branco se o elemento estiver display:none.
       // Solução "cirúrgica": clona o PDF para um container fora da tela, visível, só para a geração.
       const tmp = document.createElement("div");
-      tmp.style.cssText = "position:absolute;left:0;top:-10000px;width:794px;background:#fff;";
-      clone.style.width = "794px";
-      clone.style.height = "auto";
-      clone.style.display = "block";
+      tmp.style.cssText = "position:absolute;left:0;top:-10000px;width:794px;background:#fff;z-index:2147483647;opacity:1;pointer-events:none;";
       const clone = pdfEl.cloneNode(true);
       clone.style.display = "block";
       clone.style.visibility = "visible";
       clone.style.opacity = "1";
-      // evita IDs duplicados em caso de CSS/JS
+            clone.style.width = "794px";
+      clone.style.height = "auto";
+      clone.style.overflow = "visible";
+      clone.style.position = "relative";
+// evita IDs duplicados em caso de CSS/JS
       clone.id = "pdf_share_clone";
       tmp.appendChild(clone);
       document.body.appendChild(tmp);
+
+      // Força o html2canvas a capturar a altura completa (Android às vezes corta)
+      const _w = clone.scrollWidth || 794;
+      const _h = clone.scrollHeight || clone.offsetHeight || 1123;
 
       // Espera imagens carregarem (principalmente o logo) — sem setTimeout que quebra "user gesture"
       const imgs = Array.from(clone.querySelectorAll("img"));
@@ -1464,12 +1469,7 @@ const obs = document.getElementById('obs').value.trim();
         margin: 8,
         filename,
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-        scale: 2,
-        useCORS: true,
-        windowWidth: clone.scrollWidth,
-        windowHeight: clone.scrollHeight
-      },
+        html2canvas: { scale: 2, useCORS: true, windowWidth: (typeof _w!=="undefined"?_w:undefined), windowHeight: (typeof _h!=="undefined"?_h:undefined), scrollX: 0, scrollY: 0 },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
       };
 
