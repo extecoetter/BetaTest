@@ -1420,16 +1420,16 @@ const obs = document.getElementById('obs').value.trim();
   // 3) Compartilha como arquivo (Web Share API)
   // 4) Se não suportar, abre o PDF no viewer (bloburl) para compartilhar de lá
   async function compartilharPDF(evt){
-      // iOS: modo simples — apenas gera o PDF via print
-      if(evt && evt.preventDefault) evt.preventDefault();
-      try{
-        syncParcelamentoToObs();
-        if(typeof fillPDF === 'function') fillPDF();
-        window.print();
-      }catch(e){
-        console.log("[ERRO] gerar PDF (print):", e);
-        try{ alert("Não foi possível gerar o PDF."); }catch(_){}
-      }
+  if(evt && evt.preventDefault) evt.preventDefault();
+  try{
+    syncParcelamentoToObs();
+    if(typeof fillPDF === "function") fillPDF();
+    window.print();
+  }catch(e){
+    console.log("Erro ao gerar PDF:", e);
+    alert("Não foi possível gerar o PDF.");
+  }
+}
     },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"] }
