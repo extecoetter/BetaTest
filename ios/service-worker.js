@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-clima-beta-0-1-38";
+const CACHE_NAME = "orcamento-clima-ios-1-0-6";
 
 const CORE = [
   "./",
@@ -27,7 +27,6 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // HTML: network-first (pra atualizar beta)
   if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(
       fetch(req).then((res) => {
@@ -39,7 +38,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Demais: cache-first + runtime cache
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
