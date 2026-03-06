@@ -1435,21 +1435,7 @@ const obs = document.getElementById('obs').value.trim();
         pagebreak: { mode: ["css", "legacy"] }
       };
 
-      // tenta share de arquivo (melhor UX)
-      if(navigator.share && navigator.canShare){
-        const pdfBlob = await html2pdf().set(opt).from(clone).output("blob");
-        if(!pdfBlob || !pdfBlob.size) throw new Error("PDF vazio");
-        const file = new File([pdfBlob], filename, { type: "application/pdf" });
 
-        if(navigator.canShare({ files: [file] })){
-          await navigator.share({
-            files: [file],
-            title: "Orçamento",
-            text: `Olá! Segue o orçamento em PDF para ${cliente || "o cliente"}.`
-          });
-          return;
-        }
-      }
 
       // fallback melhor que download: abre o PDF no visualizador
       const blobUrl = await html2pdf().set(opt).from(clone).output("bloburl");
