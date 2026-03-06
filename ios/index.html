@@ -1,3 +1,4 @@
+
 <!doctype html>
 
 <!-- =========================================================
@@ -52,7 +53,24 @@
       margin: 18px auto 90px;
       padding: 0 14px;
     }
-/* APP TOP BAR (SEM LOGO) */
+     /* remove URL do rodapé do Safari (PDF iPhone) */
+    @media print {
+      @page {
+        margin: 14mm 14mm 14mm 14mm;
+      }
+
+      html, body{
+        height:auto;
+        margin:0;
+        padding:0;
+      }
+
+      .pdf{
+        padding-bottom:40px;
+      }
+    }
+
+    /* APP TOP BAR (SEM LOGO) */
     .appbar{
       background: linear-gradient(180deg, #2f80ff 0%, #1f6feb 100%);
       color:#fff;
@@ -561,34 +579,22 @@
     print-color-adjust: exact !important;
   }
 
-  /* iPhone / Safari: tenta empurrar o rodapé automático (URL/data) para fora */
-  html, body{
-    background:#fff !important;
-    height:auto !important;
-    margin:0 !important;
-    padding:0 0 70px 0 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
+      body{ background:#fff; }
+      .wrap, .actions{ display:none !important; }
+      .pdf{ display:block !important; }
 
-  .wrap, .actions{ display:none !important; }
+      /* Remove iOS Safari URL in PDF footer */
+      @page{
+        margin: 14mm;
+        size: A4;
+      }
 
-  .pdf{
-    display:block !important;
-    margin:0 !important;
-    padding: 0 0 70px 0 !important;
-    min-height: calc(100vh - 70px) !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    break-after: avoid-page !important;
-    page-break-after: avoid !important;
-  }
-
-  @page{
-    margin: 0;
-    size: auto;
-  }
-}
+      /* iOS-specific: hide header/footer including URL */
+      html, body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
   
 /* --- FIXES (v12-layout) --- */
 .pdf .headRow{
@@ -755,18 +761,6 @@
 .pdf .bottom .box.pay .value{
   font-size: 10px !important;
   line-height: 1.2 !important;
-}
-
-
-/* --- iOS Safari print footer workaround --- */
-@media print{
-  body::after{
-    content:"";
-    display:block;
-    height:70px;
-    width:100%;
-    background:#fff;
-  }
 }
 
 </style>
