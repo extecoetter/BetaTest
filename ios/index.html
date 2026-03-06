@@ -795,7 +795,7 @@
     // Logo (se der erro, segue sem)
     try{
       var logo = await loadLogoJpegDataUrl();
-      doc.addImage(logo, "JPEG", margin, margin-12, 260, 120, undefined, "FAST");
+      doc.addImage(logo, "JPEG", margin, margin-12, 240, 100, undefined, "FAST");
     }catch(e){}
 
     var y = margin + 86;
@@ -895,10 +895,10 @@
     doc.text(money(desconto), margin + contentW, y, { align:"right" });
 
     y += 22;
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.setTextColor(11,18,32);
     doc.text("TOTAL GERAL", margin + contentW - 300, y);
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.text(money(totalFinal), margin + contentW, y, { align:"right" });
 
     var obsEl = document.getElementById("obs");
@@ -907,20 +907,23 @@
     var pagamento = pagEl ? (pagEl.value || "").trim() : "";
 
     y += 34;
-    doc.setFontSize(10);
+    doc.setFontSize(8);
     doc.setTextColor(11,94,215);
     doc.setFont("helvetica","bold");
     doc.text("OBSERVAÇÕES", margin, y);
     doc.setFont("helvetica","normal");
+    doc.setFontSize(9);
     doc.setTextColor(51,65,85);
     var obsLines = obs ? doc.splitTextToSize(obs, contentW) : [""];
     doc.text(obsLines, margin, y+14);
 
     y += 44 + obsLines.length * 10;
     doc.setFont("helvetica","bold");
+    doc.setFontSize(7);
     doc.setTextColor(11,94,215);
     doc.text("FORMA DE PAGAMENTO", margin, y);
     doc.setFont("helvetica","normal");
+    doc.setFontSize(8);
     doc.setTextColor(51,65,85);
     var payLines = pagamento ? doc.splitTextToSize(pagamento, contentW) : [""];
     doc.text(payLines, margin, y+14);
