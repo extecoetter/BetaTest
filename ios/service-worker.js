@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-clima-ios-1-0-6";
+const CACHE_NAME = "orcamento-clima-ios-1-0-7";
 
 const CORE = [
   "./",
