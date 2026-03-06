@@ -1,5 +1,5 @@
 {
-  "name": "Orçamento Climatização (Android)",
+  "name": "Orçamento Climatização - Android",
   "short_name": "Orçamento",
   "description": "Gerador de orçamento e envio em PDF via WhatsApp.",
   "start_url": "./index.html",
