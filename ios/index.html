@@ -53,15 +53,17 @@
       padding: 0 14px;
     }
      /* remove URL do rodapé do Safari (PDF iPhone) */
-    @page{
-      margin:0;
-    }
+    @media print {
 
-    @media print{
-      body{
-        margin:0;
+     html, body{
+      height:auto;
+     }
+
+     .pdf{
+       padding-bottom:40px;
       }
-    }
+
+   }
 
     /* APP TOP BAR (SEM LOGO) */
     .appbar{
