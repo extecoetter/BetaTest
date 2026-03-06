@@ -1,10 +1,9 @@
-
 <!doctype html>
 
 <!-- =========================================================
      ORÇAMENTO CLIMATIZAÇÃO — BETA
      Arquivo: index.html (único)
-     Versão: BETA 1.0.6
+     Versão: BETA 0.1.50
      Regras:
      - Mudanças devem ser "cirúrgicas"
      - Evitar mexer em layout do PDF sem necessidade
@@ -675,7 +674,7 @@
 }
 
   
-/* --- BETA 1.0.6: ocultar dados do instalador no PDF (só CSS) --- */
+/* --- BETA 0.1.38: ocultar dados do instalador no PDF (só CSS) --- */
 .pdf .instaladorBox{ display:none !important; }
 
   
@@ -952,7 +951,7 @@
 
 <script>
   // === BETA CONFIG (edite aqui) ==========================================
-  window.APP_VERSION = "1.0.6";
+  window.APP_VERSION = "0.1.38";
   // =======================================================================
   try{ document.title = "Orçamento Climatização - BETA " + window.APP_VERSION; }catch(e){}
 </script>
@@ -962,7 +961,7 @@
   <div class="wrap">
     <div class="appbar">
       <h1>Proposta Comercial - Climatização</h1>
-      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 1.0.6</span></p>
+      <p>Adicione serviços e gere o PDF. <span class="beta-inline">BETA 0.1.38</span></p>
     </div>
 
     <div class="section-title">👤 DADOS DO ORÇAMENTO</div>
@@ -1132,7 +1131,7 @@
 <div class="actions">
   <div class="inner">
     <button class="btn" id="btnLimpar" type="button" onclick="onLimparClick(event)">Limpar</button>
-    <button class="btn primary" id="btnCompartilharPDF" type="button" onclick="onGerarPdfClick(event)">Gerar PDF</button>
+    <button class="btn primary" id="btnCompartilharPDF" type="button" onclick="compartilharPDF(event)">Gerar PDF</button>
   </div>
 </div>
 
@@ -1195,7 +1194,7 @@
 // iPhone/Safari: crypto.randomUUID pode não existir
 function uid(){
   try{
-    if(window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    if(window.crypto && typeof crypto.randomUUID === 'function') return uid();
   }  // === BETA PATCH END: iPhone UID ====================================
 catch(e){}
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -1420,41 +1419,18 @@ const obs = document.getElementById('obs').value.trim();
   // 3) Compartilha como arquivo (Web Share API)
   // 4) Se não suportar, abre o PDF no viewer (bloburl) para compartilhar de lá
   async function compartilharPDF(evt){
-  if(evt && evt.preventDefault) evt.preventDefault();
-  try{
-    syncParcelamentoToObs();
-    if(typeof fillPDF === "function") fillPDF();
-    window.print();
-  }catch(e){
-    console.log("Erro ao gerar PDF:", e);
-    alert("Não foi possível gerar o PDF.");
-  }
-}
-    },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] }
-      };
-
-
-
-      // fallback melhor que download: abre o PDF no visualizador
-      const blobUrl = await html2pdf().set(opt).from(clone).output("bloburl");
-      window.open(blobUrl, "_blank", "noopener,noreferrer");
-      setTimeout(() => { try{ URL.revokeObjectURL(blobUrl); }catch(e){} }, 60000);
-
-    } catch(err){
-      console.log("[ERRO] compartilharPDF:", err);
-      alert("Não foi possível compartilhar o PDF automaticamente. Vou abrir a visualização para você compartilhar pelo botão do PDF.");
-      try{ window.print(); }catch(e){}
-    } finally {
-      try{
-        document.querySelectorAll('[data-pdf-tmp="1"]').forEach(n=>n.remove());
-      }catch(e){}
+    if(evt && evt.preventDefault) evt.preventDefault();
+    try{
+      syncParcelamentoToObs();
+      if(typeof fillPDF === "function") fillPDF();
+      window.print();
+    }catch(e){
+      console.log("[ERRO] gerar PDF (print):", e);
+      try{ alert("Não foi possível gerar o PDF."); }catch(_){}
     }
   }
 
-
-    // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
+  // (PDF compartilhável removido nesta versão para não quebrar o app no iPhone)
   
   // ===== Parcelamento (UI + sincronização para Observações) ===============
   function syncParcelamentoToObs(){
