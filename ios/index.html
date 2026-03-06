@@ -52,6 +52,16 @@
       margin: 18px auto 90px;
       padding: 0 14px;
     }
+     /* remove URL do rodapé do Safari (PDF iPhone) */
+    @page{
+      margin:0;
+    }
+
+    @media print{
+      body{
+        margin:0;
+      }
+    }
 
     /* APP TOP BAR (SEM LOGO) */
     .appbar{
