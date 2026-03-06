@@ -56,17 +56,19 @@
      /* remove URL do rodapé do Safari (PDF iPhone) */
     @media print {
       @page {
-        margin: 14mm 14mm 14mm 14mm;
+        margin: 10mm 10mm 0mm 10mm;
+        size: A4;
       }
 
       html, body{
         height:auto;
-        margin:0;
-        padding:0;
+        margin:0 !important;
+        padding:0 !important;
       }
 
       .pdf{
-        padding-bottom:40px;
+        padding-bottom:5mm !important;
+        margin-bottom:0 !important;
       }
     }
 
@@ -579,13 +581,13 @@
     print-color-adjust: exact !important;
   }
 
-      body{ background:#fff; }
+      body{ background:#fff; margin:0 !important; padding:0 !important; }
       .wrap, .actions{ display:none !important; }
-      .pdf{ display:block !important; }
+      .pdf{ display:block !important; margin:0 !important; }
 
       /* Remove iOS Safari URL in PDF footer */
       @page{
-        margin: 14mm;
+        margin: 10mm 10mm 0mm 10mm;
         size: A4;
       }
 
@@ -593,6 +595,13 @@
       html, body {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        overflow: hidden !important;
+      }
+
+      /* Push content to prevent URL footer */
+      .pdf .bottom{
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
       }
     }
   
@@ -1484,18 +1493,18 @@ const obs = document.getElementById('obs').value.trim();
 
   // Gera e compartilha o PDF no padrão "Refrigerista":
   // 1) Preenche o HTML do PDF (fillPDF)
-  // 2) Gera em memória (Blob) via html2pdf
+  // 2) Gera em memória (Blob) via jsPDF
   // 3) Compartilha como arquivo (Web Share API)
   // 4) Se não suportar, abre o PDF no viewer (bloburl) para compartilhar de lá
   async function compartilharPDF(evt){
     if(evt && evt.preventDefault) evt.preventDefault();
     try{
       syncParcelamentoToObs();
-      if(typeof fillPDF === "function") fillPDF();
-      window.print();
+      // Use jsPDF para gerar PDF sem URL do Safari
+      await compartilharPdf();
     }catch(e){
-      console.log("[ERRO] gerar PDF (print):", e);
-      try{ alert("Não foi possível gerar o PDF."); }catch(_){}
+      console.log("[ERRO] gerar PDF:", e);
+      try{ alert("Não foi possível gerar o PDF: " + (e.message || e)); }catch(_){}
     }
   }
 
